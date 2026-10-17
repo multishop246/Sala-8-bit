@@ -37,7 +37,7 @@ export async function buildReport(i: ReportInput): Promise<Blob> {
   const cafeMax = i.ws.settings.cafe_min ?? 15;
   const kpis: [string, string][] = [
     ['Tempo em tarefas', fmtD(s?.tarefa_min || 0)], ['Entregas', String(s?.entregas || 0)], ['Reuniões', fmtD(s?.reuniao_min || 0)],
-    ['Café', `${s?.cafe_min || 0} de ${cafeMax} min`], ['Almoço', s?.almoco_min ? fmtD(s.almoco_min) : '—'], ['Ajudas aos colegas', String(s?.ajudas || 0)]
+    ['Café', `${s?.cafe_min || 0} min`], ['Almoço', s?.almoco_min ? fmtD(s.almoco_min) : '—'], ['Ajudas aos colegas', String(s?.ajudas || 0)]
   ];
   const bw = (W - 2 * M - 10) / 3;
   kpis.forEach(([k, v], n) => {
@@ -79,11 +79,7 @@ export async function buildReport(i: ReportInput): Promise<Blob> {
   gap(3);
   // ajuda e conversas
   const helps = i.board.help.filter(h => h.to_user === i.me.user_id && h.status === 'aceita');
-  const msgs = i.board.messages.filter(m => new Date(m.created_at).toLocaleDateString('sv-SE') === i.day);
-  const sent = msgs.filter(m => m.from_user === i.me.user_id);
-  line('Colaboração', 12, true); gap(1);
-  line(`Mensagens: ${sent.length} enviadas, ${msgs.length - sent.length} recebidas${sent.some(m => m.flagged) ? ` · ${sent.filter(m => m.flagged).length} sinalizadas como fora do assunto` : ''}.`, 10);
-  if (helps.length) line(`Ajudas em andamento ou concluídas: ${helps.length}.`, 10);
+  if (helps.length) { line('Colaboração', 12, true); gap(1); line(`Ajudas em andamento ou concluídas: ${helps.length}.`, 10); }
   // rodapé
   doc.setFontSize(8); doc.setTextColor(140, 146, 170);
   doc.text(`Gerado pelo Sala 8-bit em ${new Date().toLocaleString('pt-BR')}`, M, 290);
