@@ -33,6 +33,7 @@ interface LiveProps {
   onSabado?: () => void;
   onInstagram?: () => void;
   onMural?: () => void;
+  onBoard?: () => void;
 }
 export interface RoomProps {
   desks: number;
@@ -195,6 +196,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
       <canvas ref={ref} width={W} height={H} className="px" aria-label="Sala com as mesas da equipe" />
       <canvas ref={fx} width={W} height={H} className="px fx" aria-hidden="true" />
       <div className="room-ov">
+        {live?.onBoard && <button className="deskhit" aria-label="Abrir quadro de tarefas" style={box(56, 7, 74, 34)} onClick={live.onBoard} />}
         {/* áreas clicáveis (ficam embaixo das plaquinhas) */}
         {live && onCopa && <button className="deskhit" aria-label="Copa: fazer uma pausa" style={box(COPA.x, 22, COPA.w, COPA.y - 4)} onClick={onCopa} />}
         {live && onMeetingRoom && <button className="deskhit" aria-label={inMeeting ? 'Sair da reunião' : 'Sala de reunião'} style={box(MEET.x, MEET.y, MEET.w, H - MEET.y - 4)} onClick={onMeetingRoom} />}
