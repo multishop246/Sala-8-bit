@@ -6,7 +6,7 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 
 > **Experimente sem instalar:** abra o site sem configurar nada e clique em **Experimentar a demonstração**. Tudo roda no navegador, com uma equipe de exemplo.
 
-## O que já funciona (versão 0.1)
+## O que já funciona (versão 0.2)
 
 - Login com Google ou link por e-mail, sem senha
 - Criação do escritório da empresa, com endereço próprio (`/w/sua-equipe`)
@@ -16,12 +16,19 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 - **Mesa fixa:** cada pessoa escolhe a sua uma vez, com plaquinha de nome; só o administrador libera
 - Gestor com coroa e mesa da diretoria, só acompanha
 - Configurações: nome, número de mesas, linhas/marcas/clientes, funções e apps produtivos, áreas e tipos de tarefa (já vem com um catálogo completo de marketing), regras de café, almoço, ociosidade e recursos ligáveis
+- **Sala ao vivo:** cada pessoa aparece onde está (mesa, copa, reunião, mesa do gestor), com céu pela hora do dia e relógio digital
+- **Copa:** café com saldo diário (15 min por padrão, com contagem regressiva; o que passar conta como distração) e almoço uma vez por dia; no horário de almoço o site pergunta qual pausa
+- **Reuniões:** assunto, quem participa, visitantes e pessoas de outros setores; clicar de novo sai, e se quem criou sair a reunião acaba para todos
+- **Pausa do gestor:** clique na mesa do gestor quando ele chamar você para algo urgente (conta como produtivo)
+- **Chamar atenção:** placa ATENÇÃO piscando na mesa de quem chamou, até a pessoa responder
+- Quem fecha o site aparece como fora do sistema; quem entra pelo celular aparece com o celular na mão
+- Encerrar expediente e voltar no dia seguinte
 - Funciona no computador e no celular, e pode ser instalado como app (PWA)
 - Segurança no banco: cada empresa só enxerga os próprios dados (Row Level Security, testado em `scripts/test-db.mjs`)
 
 ## Próximas versões
 
-Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Em resumo: presença ao vivo na sala → quadro de tarefas e chat → Mural da Glória e relatórios → app de computador (Windows e macOS) que mede o app em foco.
+Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Em resumo: quadro de tarefas e chat → Mural da Glória e relatórios → app de computador (Windows e macOS) que mede o app em foco.
 
 O protótipo visual completo, com todas as ideias, está em [`prototype/prototipo-v1.html`](prototype/prototipo-v1.html) (abra no navegador).
 

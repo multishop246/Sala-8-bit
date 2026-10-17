@@ -1,56 +1,199 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../game/Avatar';
 import { Room } from '../game/Room';
+import { fmtClock, fmtDur, STATE_COLOR, STATE_LABEL, useLive, type PersonView } from '../live/LiveProvider';
+import type { MemberState } from '../lib/types';
 import { useWs } from '../lib/workspace';
-import type { Member } from '../lib/types';
+
+type Dlg = { kind: 'copa' } | { kind: 'meet' } | { kind: 'person'; id: string } | { kind: 'end' } | null;
 
 export function Office() {
   const { ws, me, members } = useWs();
-  const [sel, setSel] = useState<Member | null>(null);
+  const L = useLive();
+  const [dlg, setDlg] = useState<Dlg>(null);
   const ready = members.filter(m => m.display_name && m.consent_at);
-  const team = ready.filter(m => m.kind === 'membro');
-  const bosses = ready.filter(m => m.kind === 'gestor');
-  const pending = members.length - ready.length;
-  const freeDesks = ws.desks - team.filter(m => m.desk).length;
+  const mine = L.view(me.user_id);
+  const gestor = me.kind === 'gestor';
+  const label = (s: MemberState) => (s === 'pausa_gestor' ? `Pausa, ${L.gestorName || 'gestor'}` : STATE_LABEL[s]);
+  const myMeeting = L.meetings.find(m => m.people.includes(me.user_id));
+
+  const copa = async () => {
+    if (gestor) return setDlg({ kind: 'person', id: me.user_id });
+    const st = mine?.shown;
+    if (st === 'cafe' || st === 'almoco') { await L.act.setState('trabalhando'); return; }
+    if (st === 'encerrado') return;
+    if (L.inLunchWindow && !mine?.lunchDone) return setDlg({ kind: 'copa' });
+    await L.act.setState('cafe');
+  };
+  const meetingRoom = async () => { if (myMeeting) await L.act.leaveMeeting(); else setDlg({ kind: 'meet' }); };
+  const boss = async () => {
+    if (gestor) return;
+    if (!L.gestorName) return setDlg({ kind: 'person', id: me.user_id });
+    await L.act.setState(mine?.shown === 'pausa_gestor' ? 'trabalhando' : 'pausa_gestor');
+  };
+  const attention = async (from: string) => { await L.act.ackAttention(from); setDlg({ kind: 'person', id: from }); };
+
+  const sorted = [...L.views].sort((a, b) => (a.member.kind === b.member.kind ? (a.member.desk || 0) - (b.member.desk || 0) : a.member.kind === 'gestor' ? -1 : 1));
+  const freeDesks = ws.desks - ready.filter(m => m.kind === 'membro' && m.desk).length;
 
   return (
     <>
-      <div className="banner">
-        <span><b>Versão 0.1</b> · equipe, mesas e configurações já funcionam. Presença ao vivo, tarefas, chat e mural chegam nas próximas versões.</span>
-        {me.is_admin && freeDesks > 0 && <Link to={`/w/${ws.slug}/config?aba=convites`} className="cta sm" style={{ textDecoration: 'none' }}>Convidar equipe</Link>}
-      </div>
+      {L.callsToMe.length > 0 && <div className="alerts" style={{ marginBottom: 14 }}>
+        {L.callsToMe.map(c => { const f = members.find(m => m.user_id === c.from_user); return (
+          <div key={c.id} className="alert" role="alert"><span><b>{f?.display_name || 'Um colega'}</b> chamou sua atenção</span><button className="cta sm" onClick={() => attention(c.from_user)}>Responder</button></div>); })}
+      </div>}
       <div className="grid2">
-        <aside className="panel">
-          <h3>Equipe · {team.length}</h3>
-          {[...bosses, ...team].map(m => (
-            <button key={m.user_id} className="mrow" style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--line)', textAlign: 'left', color: 'inherit' }} onClick={() => setSel(m)}>
-              <Avatar avatar={m.avatar} crown={m.kind === 'gestor'} size={30} />
-              <span className="who"><b>{m.display_name}{m.user_id === me.user_id && <span className="chip acc" style={{ marginLeft: 6 }}>você</span>}</b>
-                <span>{m.kind === 'gestor' ? 'Gestor' : [m.main_role, ...m.adj_roles].filter(Boolean).join(' · ')}</span></span>
-              <span className="small muted">{m.kind === 'gestor' ? '♛' : m.desk ? `Mesa ${m.desk}` : '—'}</span>
-            </button>
-          ))}
-          {pending > 0 && <p className="small muted" style={{ marginTop: 8 }}>{pending} {pending === 1 ? 'pessoa ainda está' : 'pessoas ainda estão'} criando o personagem.</p>}
-          <p className="small muted" style={{ marginTop: 8 }}>{freeDesks} {freeDesks === 1 ? 'mesa livre' : 'mesas livres'} de {ws.desks}.</p>
+        <aside className="stack">
+          <MyCard view={mine} label={label} onCopa={copa} onMeet={meetingRoom} onBoss={boss} onEnd={() => setDlg({ kind: 'end' })} inMeeting={!!myMeeting} gestor={gestor} />
+          <div className="panel">
+            <h3>Equipe · {L.views.filter(v => v.online).length} online</h3>
+            {sorted.map(v => (
+              <button key={v.member.user_id} className="mrow" style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--line)', textAlign: 'left', color: 'inherit' }} onClick={() => setDlg({ kind: 'person', id: v.member.user_id })}>
+                <Avatar avatar={v.member.avatar} crown={v.member.kind === 'gestor'} size={30} />
+                <span className="who"><b>{v.member.display_name}{v.member.user_id === me.user_id && <span className="chip acc" style={{ marginLeft: 6 }}>você</span>}</b>
+                  <span className="state"><i style={{ background: v.shown === 'fora' || v.shown === 'encerrado' ? '#555c70' : STATE_COLOR[v.shown] }} />
+                    {v.member.kind === 'gestor' && v.shown === 'trabalhando' ? 'No escritório' : label(v.shown)}{v.online && v.device === 'celular' ? ' · celular' : ''}</span></span>
+                <span className="small muted mono">{v.shown === 'cafe' ? (v.cafeLeft < 0 ? `+${Math.ceil(-v.cafeLeft / 60)}m` : fmtClock(v.cafeLeft)) : v.shown !== 'fora' ? fmtDur(L.now - v.since) : ''}</span>
+              </button>))}
+            <p className="small muted" style={{ marginTop: 8 }}>{freeDesks} {freeDesks === 1 ? 'mesa livre' : 'mesas livres'} de {ws.desks}.
+              {me.is_admin && freeDesks > 0 && <> <Link to={`/w/${ws.slug}/config?aba=convites`}>Convidar</Link></>}</p>
+          </div>
         </aside>
         <section className="stack">
-          <Room desks={ws.desks} members={ready} onMemberClick={setSel} />
-          {sel && (
-            <div className="panel" aria-live="polite">
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <div className="row"><Avatar avatar={sel.avatar} crown={sel.kind === 'gestor'} size={44} />
-                  <div><h3 style={{ margin: 0 }}>{sel.display_name}</h3>
-                    <span className="muted small">{sel.kind === 'gestor' ? 'Gestor · acompanha a equipe' : [sel.main_role, ...sel.adj_roles].filter(Boolean).join(' · ')}</span></div></div>
-                <button className="ghost sm" onClick={() => setSel(null)}>Fechar</button>
-              </div>
-              {sel.kind === 'membro' && sel.schedule && (
-                <p className="small muted" style={{ marginTop: 10 }}>Jornada {sel.schedule.e1}–{sel.schedule.s1} · {sel.schedule.e2}–{sel.schedule.s2}{sel.desk ? ` · Mesa ${sel.desk}` : ''}</p>
-              )}
-            </div>
-          )}
+          <Room desks={ws.desks} members={ready}
+            live={{ views: L.views, meetings: L.meetings, callsToMe: L.callsToMe, meId: me.user_id, now: L.now, gestorName: L.gestorName }}
+            onPerson={id => setDlg({ kind: 'person', id })} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention} />
+          <p className="small muted">Clique na <b>copa</b> para pausar, na <b>sala de reunião</b> para sinalizar uma reunião{L.gestorName ? <>, na <b>mesa de {L.gestorName}</b> para a pausa do gestor</> : null} e em um colega para ver o status ou chamar a atenção.</p>
         </section>
       </div>
+
+      {dlg?.kind === 'copa' && <Modal title="Copa" onClose={() => setDlg(null)}>
+        <p className="muted">É horário de almoço. Qual pausa você vai fazer?</p>
+        <div className="choice">
+          <button className="opt" onClick={async () => { setDlg(null); await L.act.setState('cafe'); }}><b>Café</b><span>Restam {fmtClock(Math.max(0, mine?.cafeLeft || 0))} hoje</span></button>
+          <button className="opt" onClick={async () => { setDlg(null); await L.act.setState('almoco'); }}><b>Almoço</b><span>Uma vez por dia</span></button>
+        </div>
+      </Modal>}
+      {dlg?.kind === 'meet' && <MeetingDialog onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'person' && <PersonDialog view={L.view(dlg.id)} label={label} onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'end' && <Modal title="Encerrar expediente" onClose={() => setDlg(null)}>
+        <p className="muted">Você sai do escritório até amanhã. Se precisar voltar hoje, é só clicar em "Voltar ao trabalho". O relatório do dia chega na versão 0.4.</p>
+        <div className="btns"><button className="cta" onClick={async () => { setDlg(null); await L.act.setState('encerrado'); }}>Encerrar expediente</button><button className="ghost" onClick={() => setDlg(null)}>Cancelar</button></div>
+      </Modal>}
     </>
+  );
+}
+
+function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, inMeeting, gestor }: {
+  view?: PersonView; label: (s: MemberState) => string; onCopa: () => void; onMeet: () => void; onBoss: () => void; onEnd: () => void; inMeeting: boolean; gestor: boolean;
+}) {
+  const L = useLive();
+  if (!view) return <div className="panel"><p className="muted">Entrando no escritório…</p></div>;
+  const s = view.shown, m = view.member;
+  const over = view.cafeLeft < 0;
+  const ended = s === 'encerrado';
+  return (
+    <div className="panel me-card">
+      <div className="me-head">
+        <Avatar avatar={m.avatar} crown={gestor} size={40} />
+        <div><b>{m.display_name}</b>
+          <span className="state"><i style={{ background: STATE_COLOR[s] }} />{gestor && s === 'trabalhando' ? 'No escritório · acompanhando' : label(s)} · {fmtDur(L.now - view.since)}</span></div>
+      </div>
+      {!gestor && <div className="kv">
+        <div><span>Café restante hoje</span><b className={over ? 'over' : ''}>{over ? `+${Math.ceil(-view.cafeLeft / 60)} min` : fmtClock(view.cafeLeft)}</b></div>
+        <div><span>Almoço</span><b>{view.lunchDone ? (s === 'almoco' ? 'agora' : 'feito') : 'pendente'}</b></div>
+      </div>}
+      {over && !gestor && <p className="small" style={{ color: '#ff9aa8' }}>O café passou do limite do dia. O tempo extra conta como distração.</p>}
+      <div className="btns">
+        {ended ? <button className="cta" onClick={() => L.act.setState('trabalhando')}>Voltar ao trabalho</button> : <>
+          {!gestor && <button className={s === 'cafe' || s === 'almoco' ? 'cta' : 'ghost'} onClick={onCopa}>{s === 'cafe' ? 'Voltar do café' : s === 'almoco' ? 'Voltar do almoço' : 'Ir para a copa'}</button>}
+          <button className={inMeeting ? 'cta' : 'ghost'} onClick={onMeet}>{inMeeting ? 'Sair da reunião' : 'Sinalizar reunião'}</button>
+          {!gestor && L.gestorName && <button className={s === 'pausa_gestor' ? 'cta' : 'ghost'} onClick={onBoss}>{s === 'pausa_gestor' ? `Voltar da pausa` : `Pausa, ${L.gestorName}`}</button>}
+          <button className="ghost" onClick={onEnd}>Encerrar expediente</button>
+        </>}
+      </div>
+      {!gestor && L.gestorName && <p className="small muted">"Pausa, {L.gestorName}": quando o gestor chama você para algo urgente fora do sistema. Conta como tempo produtivo.</p>}
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="modal" onClick={e => { if (e.target === e.currentTarget) onClose(); }} onKeyDown={e => { if (e.key === 'Escape') onClose(); }}>
+      <div className="dlg" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="hd"><h2>{title}</h2><button className="ghost sm" onClick={onClose} aria-label="Fechar">Fechar</button></div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MeetingDialog({ onClose }: { onClose: () => void }) {
+  const { me } = useWs();
+  const L = useLive();
+  const [subject, setSubject] = useState('');
+  const [sel, setSel] = useState<string[]>([]);
+  const [vis, setVis] = useState(0);
+  const [out, setOut] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const others = L.views.filter(v => v.member.user_id !== me.user_id);
+  const avail = (v: PersonView) => ['trabalhando', 'cafe', 'pausa_gestor'].includes(v.shown);
+  const mine = L.view(me.user_id);
+  const blocked = mine?.shown === 'encerrado' || mine?.shown === 'fora';
+  return (
+    <Modal title="Sinalizar reunião" onClose={onClose}>
+      {L.meetings.length > 0 && <div className="stack" style={{ gap: 6 }}>
+        <span className="lbl">Reunião acontecendo</span>
+        {L.meetings.map(m => <div key={m.id} className="item"><span><b>{m.subject}</b><small>{m.people.length + m.visitors + m.outsiders} pessoas</small></span>
+          <button className="cta sm" disabled={busy || blocked} onClick={async () => { setBusy(true); if (await L.act.joinMeeting(m.id)) onClose(); else setBusy(false); }}>Entrar</button></div>)}
+        <span className="lbl" style={{ marginTop: 6 }}>Ou comece outra</span>
+      </div>}
+      <div className="field"><label htmlFor="ms">Assunto</label><input id="ms" value={subject} onChange={e => setSubject(e.target.value)} maxLength={80} placeholder="Ex.: Alinhamento da campanha de Natal" autoFocus /></div>
+      <div><span className="lbl">Quem participa</span>
+        <div className="picks" style={{ marginTop: 6 }}>{others.map(v => {
+          const on = sel.includes(v.member.user_id), ok = avail(v);
+          return <button key={v.member.user_id} type="button" className="opt" aria-pressed={on} disabled={!ok}
+            onClick={() => setSel(s => on ? s.filter(x => x !== v.member.user_id) : [...s, v.member.user_id])}>
+            <Avatar avatar={v.member.avatar} crown={v.member.kind === 'gestor'} size={24} /><span><b style={{ fontSize: 13 }}>{v.member.display_name}</b><br />{ok ? (on ? 'Vai participar' : 'Disponível') : STATE_LABEL[v.shown]}</span></button>;
+        })}</div></div>
+      <div className="row">
+        <div className="field"><label htmlFor="mv">Visitantes</label><select id="mv" value={vis} onChange={e => setVis(+e.target.value)}>{Array.from({ length: 16 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></div>
+        <div className="field"><label htmlFor="mo">Pessoas de outros setores</label><select id="mo" value={out} onChange={e => setOut(+e.target.value)}>{Array.from({ length: 16 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></div>
+      </div>
+      {blocked && <p className="err">Entre no escritório antes de marcar uma reunião.</p>}
+      <div className="btns"><button className="cta" disabled={busy || blocked || subject.trim().length < 2} onClick={async () => { setBusy(true); if (await L.act.startMeeting(subject.trim(), sel, vis, out)) onClose(); else setBusy(false); }}>Começar reunião</button>
+        <button className="ghost" onClick={onClose}>Cancelar</button></div>
+      <p className="small muted">Quem você marcar entra na reunião junto. Para sair, clique de novo na sala de reunião. Se quem criou sair, a reunião acaba para todos.</p>
+    </Modal>
+  );
+}
+
+function PersonDialog({ view, label, onClose }: { view?: PersonView; label: (s: MemberState) => string; onClose: () => void }) {
+  const { me } = useWs();
+  const L = useLive();
+  const [busy, setBusy] = useState(false);
+  if (!view) return null;
+  const m = view.member, self = m.user_id === me.user_id;
+  const called = L.callsFromMe.some(c => c.to_user === m.user_id);
+  const ctx = view.shown === 'reuniao' && view.meeting ? ` · ${view.meeting.subject}` : '';
+  return (
+    <Modal title={self ? 'Você' : m.display_name || ''} onClose={onClose}>
+      <div className="me-head" style={{ gridTemplateColumns: '48px minmax(0,1fr)' }}>
+        <Avatar avatar={m.avatar} crown={m.kind === 'gestor'} size={48} />
+        <div><b>{m.display_name}</b>
+          <span className="small muted">{m.kind === 'gestor' ? 'Gestor · acompanha a equipe' : [m.main_role, ...m.adj_roles].filter(Boolean).join(' · ')}</span><br />
+          <span className="state"><i style={{ background: view.shown === 'fora' || view.shown === 'encerrado' ? '#555c70' : STATE_COLOR[view.shown] }} />
+            {m.kind === 'gestor' && view.shown === 'trabalhando' ? 'No escritório' : label(view.shown)}{ctx}{view.shown !== 'fora' ? ` · há ${fmtDur(L.now - view.since)}` : ''}{view.online && view.device === 'celular' ? ' · pelo celular' : ''}</span></div>
+      </div>
+      {m.kind === 'membro' && <div className="kv">
+        <div><span>Café restante hoje</span><b className={view.cafeLeft < 0 ? 'over' : ''}>{view.cafeLeft < 0 ? `+${Math.ceil(-view.cafeLeft / 60)} min` : fmtClock(view.cafeLeft)}</b></div>
+        <div><span>Jornada</span><b style={{ fontSize: 13 }}>{m.schedule ? `${m.schedule.e1}–${m.schedule.s1} · ${m.schedule.e2}–${m.schedule.s2}` : '—'}</b></div>
+      </div>}
+      {!self && <div className="btns">
+        <button className="cta" disabled={busy || called} onClick={async () => { setBusy(true); await L.act.callAttention(m.user_id); setBusy(false); }}>{called ? 'Atenção chamada · aguardando' : 'Chamar atenção'}</button>
+      </div>}
+      {!self && <p className="small muted">Uma placa ATENÇÃO aparece na sua mesa para {m.display_name} até que responda. O chat por demanda chega na versão 0.3.</p>}
+    </Modal>
   );
 }

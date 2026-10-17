@@ -73,6 +73,8 @@ Pronto: o login por **link no e-mail** já funciona.
 
 **Posso usar meu próprio domínio?** Sim, em Vercel → Settings → Domains. Depois atualize a Site URL e as Redirect URLs do Supabase.
 
+**Atualizando da 0.1 para a 0.2:** rode no SQL Editor só o arquivo novo `0003_sala_ao_vivo.sql`.
+
 **Como atualizo para uma versão nova?** No seu fork, clique em **Sync fork**. A Vercel publica sozinha. Se a versão trouxer arquivos novos em `supabase/migrations`, rode só os novos no SQL Editor, em ordem.
 
 **Quero testar antes.** Abra o site sem preencher as variáveis e clique em **Experimentar a demonstração**.

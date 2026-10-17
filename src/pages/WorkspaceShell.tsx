@@ -9,6 +9,7 @@ import { isDemo, supabase } from '../lib/supabase';
 import { profileDone, type CatalogItem, type Member, type Workspace } from '../lib/types';
 import { WorkspaceContext } from '../lib/workspace';
 import { Onboarding } from './Onboarding';
+import { LiveProvider } from '../live/LiveProvider';
 
 export function WorkspaceShell() {
   const { slug = '' } = useParams();
@@ -68,7 +69,7 @@ export function WorkspaceShell() {
           </nav>
           <span className="row" title={me.display_name || ''}><Avatar avatar={me.avatar} crown={me.kind === 'gestor'} size={26} /></span>
         </header>
-        <Outlet />
+        <LiveProvider><Outlet /></LiveProvider>
       </div>
     </WorkspaceContext.Provider>
   );

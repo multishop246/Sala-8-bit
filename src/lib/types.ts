@@ -86,3 +86,22 @@ export interface InvitePreview {
 
 /** O cadastro está completo quando a pessoa aceitou os termos (gestor só precisa de nome e personagem). */
 export const profileDone = (m: Member) => !!m.display_name && !!m.consent_at;
+
+// ------------------------------------------------------------- 0.2: sala ao vivo
+export type MemberState = 'fora' | 'trabalhando' | 'cafe' | 'almoco' | 'reuniao' | 'pausa_gestor' | 'encerrado';
+export type Device = 'computador' | 'celular';
+
+export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string }
+export interface Pause { id: string; workspace_id: string; user_id: string; kind: 'cafe' | 'almoco'; day: string; started_at: string; ended_at: string | null }
+export interface Meeting { id: string; workspace_id: string; subject: string; created_by: string; visitors: number; outsiders: number; started_at: string; ended_at: string | null }
+export interface MeetingMember { meeting_id: string; workspace_id: string; user_id: string; joined_at: string; left_at: string | null }
+export interface AttentionCall { id: string; workspace_id: string; from_user: string; to_user: string; created_at: string; seen_at: string | null }
+
+export interface LiveSnapshot {
+  statuses: Status[];
+  pauses: Pause[];            // de hoje
+  meetings: Meeting[];        // abertas
+  meetingMembers: MeetingMember[]; // de reuniões abertas, ainda dentro
+  calls: AttentionCall[];     // abertas, envolvendo você
+}
+export type OnlineMap = Record<string, { device: Device }>;

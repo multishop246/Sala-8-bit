@@ -100,4 +100,101 @@ await t('excluir a conta do único admin funciona (LGPD)', async () => {
   const adm = (await q(`select is_admin from members where workspace_id=$1 and user_id=$2`, [w2.id, A])).rows[0];
   if (!adm || !adm.is_admin) throw new Error('A não virou admin');
 });
+
+// ------------------------------------------------------------ 0.2: sala ao vivo
+const D = '44444444-4444-4444-4444-444444444444', E = '55555555-5555-5555-5555-555555555555', G = '66666666-6666-6666-6666-666666666666', X = '77777777-7777-7777-7777-777777777777';
+await q(`insert into auth.users values ($1),($2),($3),($4)`, [D, E, G, X]);
+const today = new Date().toISOString().slice(0, 10);
+let w3;
+await t('0.2 · equipe nova com status criado para cada membro', async () => {
+  w3 = await as(D, async () => (await q(`select * from create_workspace('Sala Viva','sala-viva')`)).rows[0]);
+  const im = await as(D, async () => (await q(`select * from create_invite($1)`, [w3.id])).rows[0]);
+  const ig = await as(D, async () => (await q(`select * from create_invite($1,'gestor')`, [w3.id])).rows[0]);
+  await as(E, () => q(`select accept_invite($1)`, [im.token]));
+  await as(G, () => q(`select accept_invite($1)`, [ig.token]));
+  const n = (await q(`select count(*)::int n from statuses where workspace_id=$1 and state='fora'`, [w3.id])).rows[0].n;
+  if (n !== 3) throw new Error('status: ' + n);
+});
+const st = async uid => (await q(`select state, meeting_id from statuses where workspace_id=$1 and user_id=$2`, [w3.id, uid])).rows[0];
+await t('0.2 · entrar no escritório e ir ao café abre uma pausa', async () => {
+  await as(D, () => q(`select set_state($1,'trabalhando',$2,'computador')`, [w3.id, today]));
+  await as(E, () => q(`select set_state($1,'trabalhando',$2,'celular')`, [w3.id, today]));
+  await as(E, () => q(`select set_state($1,'cafe',$2)`, [w3.id, today]));
+  const open = (await q(`select count(*)::int n from pauses where user_id=$1 and ended_at is null`, [E])).rows[0].n;
+  if (open !== 1 || (await st(E)).state !== 'cafe') throw new Error('sem pausa aberta');
+});
+await t('0.2 · voltar à mesa fecha a pausa', async () => {
+  await as(E, () => q(`select set_state($1,'trabalhando',$2)`, [w3.id, today]));
+  const open = (await q(`select count(*)::int n from pauses where user_id=$1 and ended_at is null`, [E])).rows[0].n;
+  if (open !== 0) throw new Error('pausa ficou aberta');
+});
+await t('0.2 · almoço só uma vez por dia', async () => {
+  await as(E, () => q(`select set_state($1,'almoco',$2)`, [w3.id, today]));
+  await as(E, () => q(`select set_state($1,'trabalhando',$2)`, [w3.id, today]));
+  await as(E, () => expectErr(() => q(`select set_state($1,'almoco',$2)`, [w3.id, today]), /almoço/));
+});
+await t('0.2 · não dá para mudar status direto na tabela', async () => {
+  await as(E, async () => { const r = await q(`update statuses set state='reuniao' where user_id=$1`, [E]); if (r.affectedRows) throw new Error('mudou'); });
+});
+await t('0.2 · reunião só pelo botão', () => as(E, () => expectErr(() => q(`select set_state($1,'reuniao',$2)`, [w3.id, today]), /reunião/)));
+await t('0.2 · gestor não usa copa', async () => {
+  await as(G, () => q(`select set_state($1,'trabalhando',$2)`, [w3.id, today]));
+  await as(G, () => expectErr(() => q(`select set_state($1,'cafe',$2)`, [w3.id, today]), /gestor/));
+});
+await t('0.2 · pausa do gestor', async () => {
+  await as(E, () => q(`select set_state($1,'pausa_gestor',$2)`, [w3.id, today]));
+  if ((await st(E)).state !== 'pausa_gestor') throw new Error('não entrou');
+});
+let mt;
+await t('0.2 · D marca reunião e leva E e o gestor', async () => {
+  mt = await as(D, async () => (await q(`select * from start_meeting($1,'Alinhamento',$2,2,1)`, [w3.id, [E, G]])).rows[0]);
+  for (const u of [D, E, G]) { const s = await st(u); if (s.state !== 'reuniao' || s.meeting_id !== mt.id) throw new Error(u + ' ' + JSON.stringify(s)); }
+});
+await t('0.2 · reunião registra os 3 participantes', async () => {
+  const r = (await q(`select count(*)::int n from meeting_members where meeting_id=$1`, [mt.id])).rows[0].n; if (r !== 3) throw new Error('membros ' + r);
+});
+await t('0.2 · E sai e a reunião continua', async () => {
+  await as(E, () => q(`select leave_meeting($1)`, [w3.id]));
+  if ((await st(E)).state !== 'trabalhando') throw new Error('E não voltou');
+  if ((await st(D)).state !== 'reuniao') throw new Error('D saiu junto');
+});
+await t('0.2 · E entra de novo pela sala', async () => {
+  await as(E, () => q(`select join_meeting($1)`, [mt.id]));
+  if ((await st(E)).state !== 'reuniao') throw new Error('não entrou');
+});
+await t('0.2 · quem criou sai e todos voltam para a mesa', async () => {
+  await as(D, () => q(`select leave_meeting($1)`, [w3.id]));
+  for (const u of [D, E, G]) if ((await st(u)).state !== 'trabalhando') throw new Error(u + ' ficou');
+  const e = (await q(`select ended_at from meetings where id=$1`, [mt.id])).rows[0].ended_at; if (!e) throw new Error('não encerrou');
+});
+await t('0.2 · ir ao café sai da reunião', async () => {
+  const m2 = await as(D, async () => (await q(`select * from start_meeting($1,'Rápida',$2)`, [w3.id, [E]])).rows[0]);
+  await as(E, () => q(`select set_state($1,'cafe',$2)`, [w3.id, today]));
+  const left = (await q(`select left_at from meeting_members where meeting_id=$1 and user_id=$2`, [m2.id, E])).rows[0].left_at;
+  if (!left || (await st(D)).state !== 'reuniao') throw new Error('estado errado');
+  await as(D, () => q(`select leave_meeting($1)`, [w3.id]));
+});
+await t('0.2 · chamar atenção e só o destinatário confirma', async () => {
+  await as(D, () => q(`select call_attention($1,$2)`, [w3.id, E]));
+  await as(D, () => q(`select call_attention($1,$2)`, [w3.id, E])); // repetido não duplica
+  const n = (await q(`select count(*)::int n from attention_calls where seen_at is null`)).rows[0].n; if (n !== 1) throw new Error('chamadas ' + n);
+  const gv = await as(G, async () => (await q(`select count(*)::int n from attention_calls`)).rows[0].n); if (gv !== 0) throw new Error('terceiro viu');
+  await as(D, () => q(`select ack_attention($1,$2)`, [w3.id, E]));
+  if ((await q(`select count(*)::int n from attention_calls where seen_at is null`)).rows[0].n !== 1) throw new Error('remetente confirmou');
+  await as(E, () => q(`select ack_attention($1,$2)`, [w3.id, D]));
+  if ((await q(`select count(*)::int n from attention_calls where seen_at is null`)).rows[0].n !== 0) throw new Error('não confirmou');
+});
+await t('0.2 · quem é de fora não mexe em nada', async () => {
+  await as(X, async () => {
+    await expectErr(() => q(`select set_state($1,'trabalhando',$2)`, [w3.id, today]), /não faz parte/);
+    await expectErr(() => q(`select start_meeting($1,'Invasão','{}')`, [w3.id]), /não faz parte/);
+    await expectErr(() => q(`select call_attention($1,$2)`, [w3.id, D]), /não faz parte/);
+    const n = (await q(`select count(*)::int n from statuses`)).rows[0].n; if (n) throw new Error('viu status');
+  });
+});
+await t('0.2 · remover membro apaga status e pausas', async () => {
+  await as(D, () => q(`delete from members where workspace_id=$1 and user_id=$2`, [w3.id, E]));
+  const n = (await q(`select (select count(*) from statuses where user_id=$1) + (select count(*) from pauses where user_id=$1) n`, [E])).rows[0].n;
+  if (Number(n)) throw new Error('sobrou ' + n);
+});
 console.log(`\n${ok} ok, ${fail} falhas`); process.exit(fail ? 1 : 0);

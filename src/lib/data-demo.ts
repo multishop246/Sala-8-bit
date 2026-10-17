@@ -60,7 +60,7 @@ function seed(): DB {
   return { workspaces: [ws], members, invites, catalog };
 }
 
-function load(): DB {
+export function load(): DB {
   try { const v = localStorage.getItem(KEY); if (v) return JSON.parse(v); } catch { /* vazio */ }
   const db = seed(); save(db); return db;
 }
