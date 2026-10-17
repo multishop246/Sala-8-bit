@@ -9,7 +9,7 @@ import { TaskDialog } from './TaskDialog';
 
 const COLS: [Col, string, string][] = [['afazer', 'A fazer', '#ef5a6f'], ['fazendo', 'Fazendo', '#f2c94c'], ['feito', 'Feito hoje', '#5ad18a']];
 
-export function Board({ openTask, setOpenTask, onChat }: { openTask: string | null; setOpenTask: (id: string | null) => void; onChat?: (userId: string, taskId: string) => void }) {
+export function Board({ openTask, setOpenTask, onChat, showAll = false }: { openTask: string | null; setOpenTask: (id: string | null) => void; onChat?: (userId: string, taskId: string) => void; showAll?: boolean }) {
   const { ws, me, members, catalog } = useWs();
   const L = useLive();
   const toast = useToast();
@@ -32,7 +32,7 @@ export function Board({ openTask, setOpenTask, onChat }: { openTask: string | nu
     return 3;
   };
   const visible = (col: Col) => b.tasks
-    .filter(t => t.col === col && (col !== 'feito' || (t.done_at && new Date(t.done_at).toLocaleDateString('sv-SE') === today)))
+    .filter(t => t.col === col && (showAll || col !== 'feito' || (t.done_at && new Date(t.done_at).toLocaleDateString('sv-SE') === today)))
     .filter(t => !lineF || t.line_id === lineF)
     .filter(t => !personF || involves(t, personF))
     .map((t, i) => [t, i] as const).sort((x, y) => rank(x[0]) - rank(y[0]) || (x[0].due_date + (x[0].due_time || '99')).localeCompare(y[0].due_date + (y[0].due_time || '99')) || x[1] - y[1]).map(x => x[0]);
@@ -68,7 +68,7 @@ export function Board({ openTask, setOpenTask, onChat }: { openTask: string | nu
           const ts = visible(k);
           return (
             <div key={k} className="col" data-col={k}>
-              <h3><span className="dot" style={{ background: c }} />{n} · {ts.length}</h3>
+              <h3><span className="dot" style={{ background: c }} />{showAll && k === 'feito' ? 'Feito' : n} · {ts.length}</h3>
               {ts.map(t => <Card key={t.id} t={t} cat={cat} onOpen={() => { if (!drag.justDragged()) setOpenTask(t.id); }} onDown={e => isMembro && drag.down(e, t.id)} />)}
               {!ts.length && <span className="small muted">Vazio</span>}
             </div>);
