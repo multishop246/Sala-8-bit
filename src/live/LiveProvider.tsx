@@ -3,7 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as live from '../lib/live';
 import { useToast } from '../components/Toast';
 import { useWs } from '../lib/workspace';
-import type { AttentionCall, Device, LiveSnapshot, Meeting, Member, MemberState, OnlineMap, Status } from '../lib/types';
+import type { AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status } from '../lib/types';
+
+const EMPTY_BOARD: BoardSnapshot = { tasks: [], events: [], contests: [], votes: [], transfers: [], help: [], durations: [], messages: [] };
 
 export const todayStr = () => new Date().toLocaleDateString('sv-SE');
 export const detectDevice = (): Device => (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches && innerWidth < 900 ? 'celular' : 'computador');
@@ -33,7 +35,25 @@ interface LiveCtx {
   callsFromMe: AttentionCall[];
   gestorName: string | null;
   inLunchWindow: boolean;
+  board: BoardSnapshot;
+  /** mensagens não lidas por remetente */
+  unread: Record<string, number>;
+  nameOf: (id: string | null) => string;
   act: {
+    createTask: (t: NewTask) => Promise<boolean>;
+    startTask: (id: string) => Promise<boolean>;
+    setActiveTask: (id: string) => Promise<boolean>;
+    completeTask: (id: string) => Promise<boolean>;
+    returnTask: (id: string) => Promise<boolean>;
+    deleteTask: (id: string) => Promise<boolean>;
+    contestTask: (id: string, text: string) => Promise<boolean>;
+    voteContest: (id: string, vote: boolean) => Promise<boolean>;
+    requestTransfer: (id: string, to: string) => Promise<boolean>;
+    answerTransfer: (id: string, ok: boolean, just: string | null) => Promise<boolean>;
+    requestHelp: (id: string, tos: string[], note: string) => Promise<boolean>;
+    answerHelp: (id: string, ok: boolean, just: string | null) => Promise<boolean>;
+    sendMessage: (to: string, task: string, text: string) => Promise<boolean>;
+    markRead: (from: string) => Promise<boolean>;
     setState: (s: MemberState) => Promise<boolean>;
     startMeeting: (subject: string, members: string[], visitors: number, outsiders: number) => Promise<boolean>;
     joinMeeting: (id: string) => Promise<boolean>;
@@ -78,6 +98,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
   // aviso quando alguém chama sua atenção
   const seenCalls = useRef(new Set<string>());
+  const firstLoad = useRef(true);
   useEffect(() => {
     if (!snap) return;
     for (const c of snap.calls) {
@@ -87,6 +108,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       toast(`${from?.display_name || 'Um colega'} chamou sua atenção`);
       try { navigator.vibrate?.(200); } catch { /* */ }
     }
+    for (const m of snap.board.messages) {
+      if (m.to_user !== me.user_id || m.read_at || seenCalls.current.has(m.id)) continue;
+      seenCalls.current.add(m.id);
+      if (firstLoad.current) continue;
+      toast(`Nova mensagem de ${members.find(x => x.user_id === m.from_user)?.display_name || 'um colega'}`);
+    }
+    firstLoad.current = false;
   }, [snap, me.user_id, members, toast]);
 
   const value = useMemo<LiveCtx>(() => {
@@ -111,8 +139,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const nowMin = new Date(now).getHours() * 60 + new Date(now).getMinutes();
     const al = ws.settings.almoco || { de: '11:00', ate: '13:00' };
     const wrap = (fn: () => Promise<unknown>, ok?: string) => async () => { try { await fn(); reload(); if (ok) toast(ok); return true; } catch (e) { toast((e as Error).message); return false; } };
+    const board = snap?.board || EMPTY_BOARD;
+    const unread: Record<string, number> = {};
+    board.messages.forEach(m => { if (m.to_user === me.user_id && !m.read_at) unread[m.from_user] = (unread[m.from_user] || 0) + 1; });
+    const nameOf = (id: string | null) => (id ? members.find(m => m.user_id === id)?.display_name || 'ex-membro' : '—');
     return {
-      ready: !!snap, now, views,
+      ready: !!snap, now, views, board, unread, nameOf,
       view: (id: string) => views.find(v => v.member.user_id === id),
       meetings: meetingsOpen,
       callsToMe: (snap?.calls || []).filter(c => c.to_user === me.user_id),
@@ -120,6 +152,20 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       gestorName: gestor?.display_name || null,
       inLunchWindow: nowMin >= toMin(al.de) && nowMin < toMin(al.ate),
       act: {
+        createTask: t => wrap(() => live.createTask(ws.id, t), 'Tarefa criada')(),
+        startTask: id => wrap(() => live.startTask(id), 'Tarefa iniciada')(),
+        setActiveTask: id => wrap(() => live.setActiveTask(id), 'Executando agora')(),
+        completeTask: id => wrap(() => live.completeTask(id))(),
+        returnTask: id => wrap(() => live.returnTask(id), 'Devolvida para A fazer')(),
+        deleteTask: id => wrap(() => live.deleteTask(id), 'Tarefa excluída')(),
+        contestTask: (id, text) => wrap(() => live.contestTask(id, text), 'Sugestão enviada para votação')(),
+        voteContest: (id, v) => wrap(() => live.voteContest(id, v), 'Voto registrado')(),
+        requestTransfer: (id, to) => wrap(() => live.requestTransfer(id, to), 'Pedido de transferência enviado')(),
+        answerTransfer: (id, ok, j) => wrap(() => live.answerTransfer(id, ok, j), ok ? 'Transferência aceita' : 'Transferência recusada')(),
+        requestHelp: (id, tos, note) => wrap(() => live.requestHelp(id, tos, note), 'Pedido de ajuda enviado')(),
+        answerHelp: (id, ok, j) => wrap(() => live.answerHelp(id, ok, j), ok ? 'Você está ajudando' : 'Pedido recusado')(),
+        sendMessage: (to, task, text) => wrap(() => live.sendMessage(ws.id, to, task, text))(),
+        markRead: from => wrap(() => live.markRead(ws.id, from))(),
         setState: s => wrap(() => live.setState(ws.id, s, todayStr(), device))(),
         startMeeting: (subject, ids, v, o) => wrap(() => live.startMeeting(ws.id, subject, ids, v, o), 'Reunião sinalizada')(),
         joinMeeting: id => wrap(() => live.joinMeeting(id), 'Você entrou na reunião')(),

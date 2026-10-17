@@ -6,7 +6,7 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 
 > **Experimente sem instalar:** abra o site sem configurar nada e clique em **Experimentar a demonstração**. Tudo roda no navegador, com uma equipe de exemplo.
 
-## O que já funciona (versão 0.2)
+## O que já funciona (versão 0.3)
 
 - Login com Google ou link por e-mail, sem senha
 - Criação do escritório da empresa, com endereço próprio (`/w/sua-equipe`)
@@ -23,12 +23,19 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 - **Chamar atenção:** placa ATENÇÃO piscando na mesa de quem chamou, até a pessoa responder
 - Quem fecha o site aparece como fora do sistema; quem entra pelo celular aparece com o celular na mão
 - Encerrar expediente e voltar no dia seguinte
+- **Quadro de tarefas:** linha/marca, área e tipo, observação, para quem (equipe da área ou uma pessoa), data e horário de entrega num calendário que só mostra dias e horários de trabalho; dias lotados ficam bloqueados e o sistema sugere o próximo dia livre (capacidade calculada pelo tempo médio de cada tipo de atividade)
+- **Vídeo em etapas:** Roteiro → Captação → Edição → Finalização; a cada etapa a tarefa volta para A fazer vinculada a quem fez (sem travar para os outros)
+- **Contestação com votação** (a maioria decide), **transferência** com aceite ou recusa justificada e **pedido de ajuda** com observação obrigatória
+- **Cronômetro da tarefa:** só corre na tarefa ativa e enquanto a pessoa está trabalhando (pausa sozinho no café, almoço e reunião)
+- Arrastar os cards entre colunas, suas tarefas primeiro, filtros por linha e colaborador, contorno brilhante no que é seu
+- **Chat por demanda:** toda mensagem fica ligada a uma tarefa; Enter envia; botão Responder; mensagens fora do assunto ficam sinalizadas em vermelho (sem bloquear); responder apaga a placa ATENÇÃO
+- Clicar num colega mostra o que ele está executando agora e a conversa com ele
 - Funciona no computador e no celular, e pode ser instalado como app (PWA)
 - Segurança no banco: cada empresa só enxerga os próprios dados (Row Level Security, testado em `scripts/test-db.mjs`)
 
 ## Próximas versões
 
-Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Em resumo: quadro de tarefas e chat → Mural da Glória e relatórios → app de computador (Windows e macOS) que mede o app em foco.
+Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Em resumo: Mural da Glória e relatórios → app de computador (Windows e macOS) que mede o app em foco.
 
 O protótipo visual completo, com todas as ideias, está em [`prototype/prototipo-v1.html`](prototype/prototipo-v1.html) (abra no navegador).
 
@@ -47,7 +54,7 @@ npm run test:db              # testa as migrações e as regras de segurança nu
 ```
 
 - `src/` React + TypeScript + Vite. `src/game/` tem os sprites em pixel art e a sala.
-- `src/lib/data-supabase.ts` fala com o Supabase; `src/lib/data-demo.ts` imita as mesmas regras no navegador.
+- `src/lib/data-supabase.ts` e `src/lib/live-supabase.ts` falam com o Supabase. A demonstração (`src/demo/`) roda um Postgres de verdade no navegador (PGlite) com as **mesmas migrações**, então segue exatamente as mesmas regras.
 - `supabase/migrations/` cria tabelas, regras de segurança e funções. O catálogo padrão vem de `src/lib/catalog-default.json` (rode `node scripts/gen-catalog-sql.mjs` depois de editar).
 
 ## Privacidade

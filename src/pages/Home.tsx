@@ -6,7 +6,7 @@ import { signOut, takeNext, useAuth } from '../lib/auth';
 import { createWorkspace, myWorkspaces, slugify } from '../lib/data';
 import type { Workspace } from '../lib/types';
 import { isDemo } from '../lib/supabase';
-import { DEMO_INVITE } from '../lib/data-demo';
+import { DEMO_INVITE } from '../demo/pg';
 
 type MyWs = Workspace & { myKind: string; iAmAdmin: boolean };
 

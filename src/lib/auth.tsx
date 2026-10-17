@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, configured, isDemo } from './supabase';
-import { DEMO_USER } from './data-demo';
+import { DEMO_USER } from '../demo/pg';
 
 interface AuthState { session: Session | null; loading: boolean }
 const Ctx = createContext<AuthState>({ session: null, loading: true });

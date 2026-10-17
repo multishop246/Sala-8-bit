@@ -9,8 +9,13 @@ export const isDemo = (() => {
   try { return localStorage.getItem('sala8bit.demo') === '1'; } catch { return false; }
 })();
 export function setDemo(on: boolean) {
-  try { if (on) localStorage.setItem('sala8bit.demo', '1'); else { localStorage.removeItem('sala8bit.demo'); localStorage.removeItem('sala8bit.demo.db'); localStorage.removeItem('sala8bit.demo.session'); } } catch { /* sem armazenamento */ }
-  location.href = '/';
+  try {
+    if (on) localStorage.setItem('sala8bit.demo', '1');
+    else ['sala8bit.demo', 'sala8bit.demo.session', 'sala8bit.demo.once', 'sala8bit.next'].forEach(k => localStorage.removeItem(k));
+  } catch { /* sem armazenamento */ }
+  if (on) { location.href = '/'; return; }
+  const r = indexedDB.deleteDatabase('/pglite/sala8bit-demo');
+  r.onsuccess = r.onerror = r.onblocked = () => { location.href = '/'; };
 }
 
 const hasEnv = !!(url && key && !url.includes('xxxxxxxx'));

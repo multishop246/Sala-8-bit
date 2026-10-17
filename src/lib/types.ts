@@ -91,7 +91,7 @@ export const profileDone = (m: Member) => !!m.display_name && !!m.consent_at;
 export type MemberState = 'fora' | 'trabalhando' | 'cafe' | 'almoco' | 'reuniao' | 'pausa_gestor' | 'encerrado';
 export type Device = 'computador' | 'celular';
 
-export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string }
+export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string; active_task_id?: string | null }
 export interface Pause { id: string; workspace_id: string; user_id: string; kind: 'cafe' | 'almoco'; day: string; started_at: string; ended_at: string | null }
 export interface Meeting { id: string; workspace_id: string; subject: string; created_by: string; visitors: number; outsiders: number; started_at: string; ended_at: string | null }
 export interface MeetingMember { meeting_id: string; workspace_id: string; user_id: string; joined_at: string; left_at: string | null }
@@ -103,5 +103,36 @@ export interface LiveSnapshot {
   meetings: Meeting[];        // abertas
   meetingMembers: MeetingMember[]; // de reuniões abertas, ainda dentro
   calls: AttentionCall[];     // abertas, envolvendo você
+  board: BoardSnapshot;
 }
 export type OnlineMap = Record<string, { device: Device }>;
+
+// ------------------------------------------------------------- 0.3: tarefas e chat
+export type Col = 'afazer' | 'fazendo' | 'feito';
+export type Etapa = 'roteiro' | 'captacao' | 'edicao' | 'finalizacao';
+export interface Task {
+  id: string; workspace_id: string; title: string; description: string;
+  line_id: string | null; area_id: string | null; type_id: string | null;
+  col: Col; etapa: Etapa | null; owner: string | null; dir_to: string | null; linked_to: string | null; creator: string;
+  due_date: string; due_time: string | null; est_min: number; spent_sec: number; phase_spent_sec: number; running_since: string | null;
+  created_at: string; started_at: string | null; done_at: string | null; updated_at: string;
+}
+export interface TaskEvent { id: string; task_id: string; workspace_id: string; actor: string | null; kind: string; text: string; created_at: string }
+export interface Contest { id: string; task_id: string; workspace_id: string; by_user: string; text: string; status: 'aberta' | 'aprovada' | 'recusada'; created_at: string; closed_at: string | null }
+export interface Vote { contest_id: string; workspace_id: string; user_id: string; vote: boolean }
+export interface Transfer { id: string; task_id: string; workspace_id: string; from_user: string; to_user: string; status: 'pendente' | 'aceita' | 'recusada' | 'cancelada'; justification: string | null; created_at: string }
+export interface HelpReq { id: string; task_id: string; workspace_id: string; from_user: string; to_user: string; note: string; status: 'pendente' | 'aceita' | 'recusada' | 'cancelada'; justification: string | null; created_at: string }
+export interface Duration { user_id: string; area_id: string | null; type_id: string | null; etapa: string | null; minutes: number; done_at: string }
+export interface Message { id: string; workspace_id: string; from_user: string; to_user: string; task_id: string | null; text: string; flagged: boolean; created_at: string; read_at: string | null }
+
+export interface BoardSnapshot {
+  tasks: Task[];            // abertas + concluídas nos últimos 30 dias
+  events: TaskEvent[];
+  contests: Contest[];
+  votes: Vote[];
+  transfers: Transfer[];
+  help: HelpReq[];
+  durations: Duration[];    // últimos 120 dias
+  messages: Message[];      // suas conversas, últimos 30 dias
+}
+export interface NewTask { title: string; description: string; line_id: string; area_id: string; type_id: string | null; dir_to: string | null; due_date: string; due_time: string | null; est_min: number }

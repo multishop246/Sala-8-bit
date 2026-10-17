@@ -1,6 +1,6 @@
 // Escolhe o banco: Supabase de verdade ou o modo demonstração (no navegador).
 import * as real from './data-supabase';
-import * as demo from './data-demo';
+import * as demo from '../demo/data-pglite';
 import { isDemo } from './supabase';
 
 const api: typeof real = isDemo ? demo : real;

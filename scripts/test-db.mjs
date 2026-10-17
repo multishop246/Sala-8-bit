@@ -197,4 +197,104 @@ await t('0.2 · remover membro apaga status e pausas', async () => {
   const n = (await q(`select (select count(*) from statuses where user_id=$1) + (select count(*) from pauses where user_id=$1) n`, [E])).rows[0].n;
   if (Number(n)) throw new Error('sobrou ' + n);
 });
+
+// ------------------------------------------------------------ 0.3: tarefas e chat
+const U1 = 'a1111111-1111-1111-1111-111111111111', U2 = 'a2222222-2222-2222-2222-222222222222', U3 = 'a3333333-3333-3333-3333-333333333333', UG = 'a4444444-4444-4444-4444-444444444444';
+await q(`insert into auth.users values ($1),($2),($3),($4)`, [U1, U2, U3, UG]);
+let w4, line, video, design, tipoV, tipoD, ia;
+await t('0.3 · equipe com 3 membros e um gestor', async () => {
+  w4 = await as(U1, async () => (await q(`select * from create_workspace('Tarefas','tarefas')`)).rows[0]);
+  const im = await as(U1, async () => (await q(`select * from create_invite($1)`, [w4.id])).rows[0]);
+  const ig = await as(U1, async () => (await q(`select * from create_invite($1,'gestor')`, [w4.id])).rows[0]);
+  await as(U2, () => q(`select accept_invite($1)`, [im.token])); await as(U3, () => q(`select accept_invite($1)`, [im.token])); await as(UG, () => q(`select accept_invite($1)`, [ig.token]));
+  for (const [u, n] of [[U1, 'Ana'], [U2, 'Bia'], [U3, 'Caio'], [UG, 'Gil']]) await as(u, () => q(`update members set display_name=$3, consent_at=now() where workspace_id=$1 and user_id=$2`, [w4.id, u, n]));
+  line = await as(U1, async () => (await q(`insert into catalog_items(workspace_id,kind,name) values ($1,'linha','Aromasil') returning id`, [w4.id])).rows[0].id);
+  const c = (await q(`select id, name, kind, parent_id from catalog_items where workspace_id=$1`, [w4.id])).rows;
+  video = c.find(x => x.kind === 'area' && x.name === 'Vídeo').id; design = c.find(x => x.kind === 'area' && x.name === 'Design').id; ia = c.find(x => x.kind === 'area' && x.name === 'IA').id;
+  tipoV = c.find(x => x.kind === 'tipo' && x.parent_id === video).id; tipoD = c.find(x => x.kind === 'tipo' && x.parent_id === design).id;
+  for (const u of [U1, U2, U3]) await as(u, () => q(`select set_state($1,'trabalhando',current_date)`, [w4.id]));
+});
+const WD = (() => { const d = new Date(Date.now() + 2 * 864e5); while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1); return `'${d.toISOString().slice(0, 10)}'::date`; })();
+const ct = (uid, title, area, type, desc = '', due = WD, dir = null) => as(uid, async () => (await q(`select * from create_task($1,$2,$3,$4,$5,$6,$7,${due},null,60)`, [w4.id, title, desc, line, area, type, dir])).rows[0]);
+const tk = async id => (await q(`select * from tasks where id=$1`, [id])).rows[0];
+let tv, td;
+await t('0.3 · criar tarefa de vídeo começa no roteiro', async () => { tv = await ct(U1, 'Vídeo institucional', video, tipoV); if (tv.etapa !== 'roteiro') throw new Error(tv.etapa); });
+await t('0.3 · tipo obrigatório quando a área tem tipos', () => expectErr(() => ct(U1, 'Sem tipo', design, null), /tipo/));
+await t('0.3 · área sem tipos exige observação', async () => { await expectErr(() => ct(U1, 'Prompt', ia, null), /observação/); await ct(U1, 'Prompt', ia, null, 'Criar prompts de legenda'); });
+await t('0.3 · domingo não tem expediente', () => expectErr(() => ct(U1, 'Domingo', design, tipoD, '', `(current_date + (7 - extract(dow from current_date)::int))`), /domingo/));
+await t('0.3 · gestor não cria tarefa', () => expectErr(() => ct(UG, 'Do gestor', design, tipoD), /gestor/));
+await t('0.3 · quem é de fora não vê tarefas', () => as(X, async () => { if ((await q(`select count(*)::int n from tasks`)).rows[0].n) throw new Error('viu'); }));
+await t('0.3 · iniciar e o relógio corre só com a pessoa trabalhando', async () => {
+  await as(U2, () => q(`select start_task($1)`, [tv.id]));
+  let x = await tk(tv.id); if (x.col !== 'fazendo' || x.owner !== U2 || !x.running_since) throw new Error(JSON.stringify(x));
+  await q(`update tasks set running_since = now() - interval '30 minutes' where id=$1`, [tv.id]);
+  await as(U2, () => q(`select set_state($1,'cafe',current_date)`, [w4.id]));
+  x = await tk(tv.id); if (x.running_since || x.spent_sec < 1790) throw new Error('não pausou: ' + JSON.stringify(x));
+  await as(U2, () => q(`select set_state($1,'trabalhando',current_date)`, [w4.id]));
+  x = await tk(tv.id); if (!x.running_since) throw new Error('não voltou');
+});
+await t('0.3 · só quem executa conclui', () => as(U3, () => expectErr(() => q(`select complete_task($1)`, [tv.id]), /executando/)));
+await t('0.3 · concluir etapa volta para A fazer vinculada', async () => {
+  await as(U2, () => q(`select complete_task($1)`, [tv.id]));
+  const x = await tk(tv.id); if (x.col !== 'afazer' || x.etapa !== 'captacao' || x.linked_to !== U2 || x.owner) throw new Error(JSON.stringify(x));
+  const d = (await q(`select minutes, etapa from task_durations where task_id=$1`, [tv.id])).rows[0]; if (!d || d.etapa !== 'roteiro' || d.minutes < 29) throw new Error(JSON.stringify(d));
+});
+await t('0.3 · vínculo não restringe: outro pega a captação', async () => { await as(U3, () => q(`select start_task($1)`, [tv.id])); if ((await tk(tv.id)).owner !== U3) throw new Error('não pegou'); });
+await t('0.3 · passa pelas 4 etapas até Feito', async () => {
+  await as(U3, () => q(`select complete_task($1)`, [tv.id]));
+  await as(U1, () => q(`select start_task($1)`, [tv.id])); await as(U1, () => q(`select complete_task($1)`, [tv.id]));
+  await as(U1, () => q(`select start_task($1)`, [tv.id])); const x = (await as(U1, async () => (await q(`select * from complete_task($1)`, [tv.id])).rows[0]));
+  if (x.col !== 'feito' || !x.done_at) throw new Error(JSON.stringify(x));
+});
+await t('0.3 · contestação trava a tarefa até a votação', async () => {
+  td = await ct(U1, 'Post de Natal', design, tipoD);
+  await as(U2, () => q(`select contest_task($1,'Usar o template do ano passado')`, [td.id]));
+  await as(U3, () => expectErr(() => q(`select start_task($1)`, [td.id]), /votação/));
+  await as(U2, () => expectErr(() => q(`select vote_contest((select id from task_contests where task_id=$1),true)`, [td.id]), /já votou/));
+});
+await t('0.3 · maioria aprova e a sugestão entra na descrição', async () => {
+  await as(U3, () => q(`select vote_contest((select id from task_contests where task_id=$1),true)`, [td.id]));
+  const c = (await q(`select status from task_contests where task_id=$1`, [td.id])).rows[0]; if (c.status !== 'aprovada') throw new Error(c.status);
+  if (!(await tk(td.id)).description.includes('template')) throw new Error('descrição');
+  await as(U1, () => expectErr(() => q(`select vote_contest((select id from task_contests where task_id=$1),false)`, [td.id]), /terminou/));
+});
+await t('0.3 · transferência: recusar exige justificativa; aceitar passa a tarefa', async () => {
+  await as(U3, () => q(`select start_task($1)`, [td.id]));
+  await as(U3, () => q(`select request_transfer($1,$2)`, [td.id, U1]));
+  await as(U3, () => expectErr(() => q(`select request_transfer($1,$2)`, [td.id, U2]), /aguardando/));
+  const tr = (await q(`select id from task_transfers where task_id=$1 and status='pendente'`, [td.id])).rows[0].id;
+  await as(U2, () => expectErr(() => q(`select answer_transfer($1,true)`, [tr]), /não é para você/));
+  await as(U1, () => expectErr(() => q(`select answer_transfer($1,false,'')`, [tr]), /recusando/));
+  await as(U1, () => q(`select answer_transfer($1,true)`, [tr]));
+  const x = await tk(td.id); if (x.owner !== U1) throw new Error('dono ' + x.owner);
+  const a = (await q(`select active_task_id from statuses where workspace_id=$1 and user_id=$2`, [w4.id, U1])).rows[0].active_task_id; if (a !== td.id) throw new Error('não ficou ativa');
+});
+await t('0.3 · pedido de ajuda exige observação', async () => {
+  await as(U1, () => expectErr(() => q(`select request_help($1,$2,'')`, [td.id, [U2]]), /ajuda/));
+  await as(U1, () => q(`select request_help($1,$2,'Revisar o texto')`, [td.id, [U2, U3]]));
+  const hs = (await q(`select id, to_user from task_help where task_id=$1`, [td.id])).rows; if (hs.length !== 2) throw new Error('pedidos ' + hs.length);
+  await as(U2, () => q(`select answer_help($1,true)`, [hs.find(h => h.to_user === U2).id]));
+  await as(U3, () => q(`select answer_help($1,false,'Estou na gravação')`, [hs.find(h => h.to_user === U3).id]));
+});
+await t('0.3 · mudar status direto na tabela não funciona', () => as(U2, async () => { const r = await q(`update tasks set col='feito' where id=$1`, [td.id]); if (r.affectedRows) throw new Error('mudou'); }));
+await t('0.3 · chat: mensagem precisa de demanda e sinaliza fora do assunto', async () => {
+  await as(U2, () => expectErr(() => q(`select send_message($1,$2,null,'oi')`, [w4.id, U1]), /demanda/));
+  const m1 = await as(U2, async () => (await q(`select * from send_message($1,$2,$3,'Revisei o texto do post')`, [w4.id, U1, td.id])).rows[0]);
+  const m2 = await as(U2, async () => (await q(`select * from send_message($1,$2,$3,'Viu o jogo de ontem?')`, [w4.id, U1, td.id])).rows[0]);
+  if (m1.flagged || !m2.flagged) throw new Error('filtro');
+  const seen3 = await as(U3, async () => (await q(`select count(*)::int n from messages`)).rows[0].n); if (seen3) throw new Error('terceiro leu');
+  await as(U1, () => q(`select mark_read($1,$2)`, [w4.id, U2]));
+  if ((await q(`select count(*)::int n from messages where read_at is null`)).rows[0].n) throw new Error('não marcou lido');
+});
+await t('0.3 · responder no chat apaga a placa ATENÇÃO', async () => {
+  await as(U2, () => q(`select call_attention($1,$2)`, [w4.id, U1]));
+  await as(U1, () => q(`select send_message($1,$2,$3,'Oi, pode falar')`, [w4.id, U2, td.id]));
+  if ((await q(`select count(*)::int n from attention_calls where workspace_id=$1 and seen_at is null`, [w4.id])).rows[0].n) throw new Error('placa ficou');
+});
+await t('0.3 · quem sai da equipe devolve a tarefa', async () => {
+  await as(U1, () => q(`delete from members where workspace_id=$1 and user_id=$2`, [w4.id, U3]));
+  const t2 = await ct(U2, 'Story', design, tipoD); await as(U2, () => q(`select start_task($1)`, [t2.id]));
+  await as(U1, () => q(`delete from members where workspace_id=$1 and user_id=$2`, [w4.id, U2]));
+  const x = await tk(t2.id); if (x.col !== 'afazer' || x.owner) throw new Error(JSON.stringify(x));
+});
 console.log(`\n${ok} ok, ${fail} falhas`); process.exit(fail ? 1 : 0);

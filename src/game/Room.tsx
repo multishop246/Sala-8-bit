@@ -20,6 +20,7 @@ interface LiveProps {
   meId: string;
   now: number;
   gestorName: string | null;
+  taskTitle?: (userId: string) => string | null;
 }
 export interface RoomProps {
   desks: number;
@@ -162,7 +163,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
             const mm = byDesk.get(s.n); if (!mm) return null;
             const v = layout.vOf(mm.user_id); if (!v || v.shown !== 'trabalhando') return null;
             return <button key={'b' + s.n} className="bub" style={{ left: pct(s.x + DESK_W / 2, W), top: pct(s.y - 18.5, H) }} onClick={() => onPerson?.(mm.user_id)}>
-              <i style={{ background: STATE_COLOR.trabalhando }} />{v.device === 'celular' ? 'Pelo celular' : 'No escritório'}</button>;
+              <i style={{ background: STATE_COLOR.trabalhando }} />{(() => { const tt = live.taskTitle?.(mm.user_id); return tt ? (tt.length > 24 ? tt.slice(0, 23) + '…' : tt) : v.device === 'celular' ? 'Pelo celular' : 'No escritório'; })()}</button>;
           })}
           {layout.cafe.slice(0, 4).map((v, i) => {
             const p = cafeSpot(i), over = v.cafeLeft < 0;
