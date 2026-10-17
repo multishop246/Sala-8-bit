@@ -4,11 +4,11 @@ O Sala 8-bit mede como o tempo de trabalho é usado. Isso envolve dados pessoais
 
 1. **Avisar a equipe antes**, por escrito, do que é registrado e para quê (modelo abaixo).
 2. Ter uma **base legal**. Normalmente é o legítimo interesse ou a execução do contrato de trabalho; confirme com o jurídico ou um advogado.
-3. Deixar cada pessoa **ver os próprios dados** (o painel pessoal mostra tudo para ela a partir da versão 0.5) e **apagar os dados** quando sair: o administrador remove a pessoa em Configurações → Equipe, e para apagar também a conta de login, exclui o usuário no Supabase em Authentication → Users (tudo dela é apagado junto).
+3. Deixar cada pessoa **ver os próprios dados** (em Painel do dia → Seus apps hoje) e **apagar os dados** quando sair: o administrador remove a pessoa em Configurações → Equipe, e para apagar também a conta de login, exclui o usuário no Supabase em Authentication → Users (tudo dela é apagado junto).
 
 ## O que o sistema registra
 
-O monitoramento do tempo começa com o app de computador (versão 0.5). Até lá, o sistema guarda só o cadastro da equipe.
+O tempo por aplicativo só é medido por quem usa o app de computador. Sem ele, o sistema registra apenas o que a pessoa faz no próprio site (status, pausas, reuniões, tarefas e mensagens).
 
 | Registra | Nunca registra |
 |---|---|
@@ -17,6 +17,7 @@ O monitoramento do tempo começa com o app de computador (versão 0.5). Até lá
 | Se há música tocando (para pôr o fone no personagem) | Teclas digitadas |
 | Tempo sem teclado/mouse (ociosidade) | Títulos de janelas |
 | Quantos agentes de IA estão rodando | O que a pessoa ouve |
+| O título da aba do navegador é lido só no computador, para calcular a categoria | Títulos de janelas não saem do computador |
 | Pausas marcadas na copa, reuniões, tarefas e mensagens do chat interno | Conteúdo de arquivos |
 
 O gestor (com coroa) não é monitorado.

@@ -94,6 +94,28 @@ export async function seed() {
   await asAdmin(`update pauses set started_at = now() - interval '6 minutes' where user_id = $1 and ended_at is null`, [ids[4]]);
   await asAdmin(`update statuses set since = now() - interval '6 minutes' where user_id = $1`, [ids[4]]);
 
+  // app de computador dos colegas: um código por pessoa e as últimas horas medidas
+  const APPS: Record<number, string[]> = { 0: ['Canva', 'mLabs', 'Navegando na internet', 'Notion'], 1: ['Figma', 'Photoshop', 'Illustrator', 'Navegando na internet'], 2: ['Navegando na internet', 'Excel', 'Looker Studio', 'Claude'], 3: ['Premiere Pro', 'After Effects', 'DaVinci Resolve'], 4: ['Word', 'Notion', 'Navegando na internet', 'ChatGPT'], 5: ['ClickUp', 'Excel', 'HubSpot', 'WhatsApp'] };
+  const tokens: Record<string, string> = {};
+  for (let i = 0; i < 6; i++) {
+    tokens[ids[i]] = (await asAdmin<{ t: string }>(`select set_config('request.jwt.claim.sub', $1, false), create_agent_token($2, 'Computador de ' || $3, 'windows') t`, [ids[i], ws.id, PEOPLE[i].name]))[0].t;
+    const agents = i === 2 ? 2 : i === 1 ? 1 : 0;
+    await asAdmin(`insert into activity_minutes(workspace_id, user_id, minute, day, app, category, agents, music)
+      select $1, $2, m, (m at time zone 'America/Sao_Paulo')::date, ($3::text[])[1 + floor(random() * array_length($3::text[], 1))::int],
+        case when x.r < 0.68 then 'prod' when x.r < 0.8 then 'ref' when x.r < 0.9 then 'com' when x.r < 0.96 then 'dis' else 'idle' end,
+        case when x.r < 0.5 then $4 else 0 end, x.r > 0.85
+      from generate_series(date_trunc('minute', now()) - interval '150 minutes', date_trunc('minute', now()) - interval '2 minutes', interval '1 minute') m,
+           lateral (select random() + 0 * extract(epoch from m) r) x
+      on conflict do nothing`, [ws.id, ids[i], APPS[i], agents]);
+    // mês passado: base do Mestre da IA
+    await asAdmin(`insert into activity_minutes(workspace_id, user_id, minute, day, app, category, agents, music)
+      select $1, $2, m, (m at time zone 'America/Sao_Paulo')::date, 'Claude', 'prod', $4, false
+      from generate_series(date_trunc('month', now()) - interval '1 month' + interval '4 days 12 hours', date_trunc('month', now()) - interval '1 month' + interval '4 days 12 hours' + ($3 || ' minutes')::interval, interval '1 minute') m
+      on conflict do nothing`, [ws.id, ids[i], [380, 610, 1450, 520, 300, 260][i], i === 2 ? 3 : 1]);
+  }
+  await asAdmin(`select set_config('request.jwt.claim.sub', '', false)`);
+  try { localStorage.setItem('sala8bit.demo.tokens', JSON.stringify(tokens)); } catch { /* */ }
+
   // Instagram perto de virar a centena (cai confete logo)
   await asAdmin(`update workspaces set settings = jsonb_set(settings, '{recursos,instagram}', 'true') where id = $1`, [ws.id]);
   await rpc(ids[0], 'set_instagram', { p_ws: ws.id, p_handle: '@agenciademo', p_followers: 9994 });

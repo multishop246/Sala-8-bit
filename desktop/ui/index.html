@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sala 8-bit</title>
+<style>
+  :root { color-scheme: dark; --bg:#0c101d; --panel:#141a2b; --line:#27304a; --fg:#e7eaf3; --muted:#8d96b2; --accent:#8b7bff }
+  * { box-sizing: border-box } body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; padding:24px }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:28px; width:min(480px,100%); display:grid; gap:16px }
+  h1 { margin:0; font-size:24px } p { margin:0; color:var(--muted) }
+  label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-weight:600 }
+  input { width:100%; background:#111727; border:1px solid var(--line); color:var(--fg); border-radius:6px; padding:10px; font:inherit }
+  button { background:var(--accent); color:#0c101d; border:0; border-radius:6px; padding:10px 16px; font:inherit; font-weight:700; cursor:pointer }
+  .err { color:#ff9aa8; font-size:13px; min-height:1em } ul { margin:0; padding-left:18px; color:var(--muted); font-size:13px }
+</style>
+</head>
+<body>
+<form class="card" id="f">
+  <h1>Sala 8-bit</h1>
+  <p>Qual é o endereço do escritório da sua empresa? É o mesmo que você abre no navegador.</p>
+  <div><label for="u">Endereço do escritório</label><input id="u" placeholder="https://sala.suaempresa.com.br" autofocus required></div>
+  <div class="err" id="e"></div>
+  <button>Abrir o escritório</button>
+  <ul>
+    <li>O app mede o tempo como descrito na tela de privacidade: nome do app em foco, categoria das páginas (calculada aqui, sem enviar endereços), ociosidade, música e agentes de IA.</li>
+    <li>Fechar a janela não para a medição. Para sair de vez, use o ícone perto do relógio.</li>
+  </ul>
+</form>
+<script>
+  document.getElementById('f').addEventListener('submit', async e => {
+    e.preventDefault();
+    let v = document.getElementById('u').value.trim();
+    if (!/^https?:\/\//.test(v)) v = 'https://' + v;
+    try { await window.__TAURI__.core.invoke('set_office_url', { url: v }); }
+    catch (err) { document.getElementById('e').textContent = String(err); }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+# Gera os instaladores do app de computador (Windows .exe e macOS .dmg) e publica num Release do GitHub.
+# Para gerar: Actions → "App de computador" → Run workflow (ou crie uma tag app-v0.5.0).
+name: App de computador
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['app-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'desktop/src-tauri -> target' }
+      - name: Testes da classificação
+        working-directory: desktop/src-tauri
+        run: cargo test --lib
+      - name: Dependências
+        working-directory: desktop
+        run: npm install
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: app-v__VERSION__
+          releaseName: 'Sala 8-bit para computador v__VERSION__'
+          releaseBody: |
+            Instaladores do app de computador do Sala 8-bit.
+            • Windows: baixe o arquivo terminado em -setup.exe
+            • macOS: baixe o .dmg (Apple Silicon e Intel)
+            Os instaladores não são assinados: veja em docs/APP-COMPUTADOR.md como abrir na primeira vez.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

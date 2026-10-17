@@ -315,3 +315,9 @@ body.grabbing, body.grabbing * { cursor: grabbing !important }
 .meter span { flex: 1; height: 6px; background: #232b42; border-radius: 3px; overflow: hidden; min-width: 50px }
 .meter span i { display: block; height: 100% }
 .tag .tsub.cap { color: #ff8a9b }
+.bub .ia { font-size: .82em; background: #203b3d; color: #7fe3e9; border-radius: 3px; padding: 0 .3em; margin-left: .35em }
+.bub .mus { font-size: .85em; background: #1a1f2e; color: var(--gold); border-radius: 3px; padding: 0 .3em; margin-left: .3em }
+.applist { display: grid; gap: 4px; margin-top: 8px }
+.applist div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 13px }
+.agentline { margin: 0 } .agentline .pdot.okc { background: var(--prod) } .agentline .pdot.offc { background: var(--dis) }
+.daytable td, .daytable th { white-space: nowrap }

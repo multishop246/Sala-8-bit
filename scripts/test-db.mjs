@@ -350,4 +350,63 @@ await t('0.4 · Instagram só o admin atualiza', async () => {
   const f = await as(V2, async () => (await q(`select followers from instagram_stats where workspace_id=$1`, [w5.id])).rows[0].followers);
   if (f !== 1234) throw new Error(f);
 });
+
+// ------------------------------------------------------------ 0.5: app de computador
+const asAnon = async fn => { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`); try { return await fn(); } finally { await db.exec('reset role'); } };
+let tok;
+await t('0.5 · membro gera o código do aparelho; gestor não', async () => {
+  tok = await as(V2, async () => (await q(`select create_agent_token($1,'Notebook','windows') t`, [w5.id])).rows[0].t);
+  if (!tok || tok.length < 40) throw new Error('token');
+  const h = (await q(`select token_hash from agent_tokens where user_id=$1`, [V2])).rows[0].token_hash; if (h === tok) throw new Error('guardou o token puro');
+});
+await t('0.5 · app sem login lê a configuração com o código', async () => {
+  const c = await asAnon(async () => (await q(`select agent_config($1) c`, [tok])).rows[0].c);
+  if (c.nome !== 'Vitor' || !Array.isArray(c.sites_referencia)) throw new Error(JSON.stringify(c));
+  await asAnon(() => expectErr(() => q(`select agent_config('errado')`), /não autorizado/));
+});
+await t('0.5 · anônimo não lê tabelas', () => asAnon(() => expectErr(() => q(`select * from activity_minutes`))));
+await t('0.5 · minutos gravados e status ao vivo', async () => {
+  const now = new Date(); const mins = [0, 1, 2, 3].map(i => new Date(now.getTime() - (4 - i) * 60000).toISOString());
+  const payload = JSON.stringify([
+    { m: mins[0], app: 'Figma', cat: 'prod', agents: 0, music: false },
+    { m: mins[1], app: 'Navegando na internet', cat: 'ref', agents: 0, music: true },
+    { m: mins[2], app: 'Claude', cat: 'prod', agents: 3, music: false },
+    { m: mins[3], app: 'Figma', cat: 'idle', agents: 0, music: false }]);
+  const r = await asAnon(async () => (await q(`select agent_report($1, $2::jsonb) r`, [tok, payload])).rows[0].r);
+  if (r.gravados !== 4) throw new Error(JSON.stringify(r));
+  const s = (await q(`select app_now, idle, agent_seen_at from statuses where user_id=$1 and workspace_id=$2`, [V2, w5.id])).rows[0];
+  if (s.app_now !== 'Figma' || !s.idle || !s.agent_seen_at) throw new Error(JSON.stringify(s));
+});
+await t('0.5 · café vira pausa, não ociosidade', async () => {
+  await as(V2, () => q(`select set_state($1,'cafe',current_date)`, [w5.id]));
+  await asAnon(() => q(`select agent_report($1, $2::jsonb)`, [tok, JSON.stringify([{ m: new Date().toISOString(), app: 'Figma', cat: 'idle', agents: 0 }])]));
+  const c = (await q(`select category from activity_minutes where user_id=$1 order by minute desc limit 1`, [V2])).rows[0].category; if (c !== 'pausa') throw new Error(c);
+  await as(V2, () => q(`select set_state($1,'trabalhando',current_date)`, [w5.id]));
+});
+await t('0.5 · resumo do dia com produtivo e bônus de IA', async () => {
+  const d = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const r = (await as(V1, async () => (await q(`select * from day_summary($1,$2)`, [w5.id, d])).rows)).find(x => x.user_id === V2);
+  // Figma 1 + referência 1 + Claude com 3 agentes 2 = 4
+  if (r.produtivo_min !== 4 || r.ref_min !== 1 || r.ocioso_min !== 1 || r.bonus_ia_min !== 1 || r.ia_min !== 1) throw new Error(JSON.stringify(r));
+});
+await t('0.5 · glória usa o tempo produtivo do app', async () => {
+  const r = (await as(V1, async () => (await q(`select * from glory_scores($1, current_date)`, [w5.id])).rows)).find(x => x.user_id === V2);
+  if (r.tarefa_min !== 4 || r.ia_min !== 1) throw new Error(JSON.stringify(r));
+});
+await t('0.5 · apps do dia: só a própria pessoa ou admin', async () => {
+  const d = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const mine = await as(V2, async () => (await q(`select * from day_apps($1,$2,$3)`, [w5.id, V2, d])).rows); if (!mine.length) throw new Error('vazio');
+  await as(V1, () => q(`select * from day_apps($1,$2,$3)`, [w5.id, V2, d]));
+  await as(V2, () => expectErr(() => q(`select * from day_apps($1,$2,$3)`, [w5.id, V1, d]), /próprios/));
+});
+await t('0.5 · depois de encerrar o expediente o app para de gravar', async () => {
+  await as(V2, () => q(`select set_state($1,'encerrado',current_date)`, [w5.id]));
+  const r = await asAnon(async () => (await q(`select agent_report($1, $2::jsonb) r`, [tok, JSON.stringify([{ m: new Date().toISOString(), app: 'Figma', cat: 'prod' }])])).rows[0].r);
+  if (r.estado !== 'encerrado' || r.gravados !== 0) throw new Error(JSON.stringify(r));
+});
+await t('0.5 · código revogado para de funcionar', async () => {
+  const id = (await q(`select id from agent_tokens where user_id=$1`, [V2])).rows[0].id;
+  await as(V2, () => q(`select revoke_agent_token($1)`, [id]));
+  await asAnon(() => expectErr(() => q(`select agent_config($1)`, [tok]), /não autorizado/));
+});
 console.log(`\n${ok} ok, ${fail} falhas`); process.exit(fail ? 1 : 0);

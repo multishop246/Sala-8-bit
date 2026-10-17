@@ -1,0 +1,15 @@
+{
+  "name": "sala-8-bit-desktop",
+  "private": true,
+  "version": "0.5.0",
+  "description": "App de computador do Sala 8-bit (Windows e macOS)",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "test": "cd src-tauri && cargo test --lib"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

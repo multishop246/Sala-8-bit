@@ -181,7 +181,7 @@ export function drawHands(r: R, cx: number, y: number, skin: string, frame: numb
   const f = frame % 2; r(cx - 8, y + (f ? 1 : 0), 2, 2, skin); r(cx + 6, y + (f ? 0 : 1), 2, 2, skin);
 }
 
-export function person(c: CanvasRenderingContext2D, x: number, y: number, av: Partial<Avatar>, opts: { stand?: boolean; crown?: boolean; blink?: boolean } = {}) {
+export function person(c: CanvasRenderingContext2D, x: number, y: number, av: Partial<Avatar>, opts: { stand?: boolean; crown?: boolean; blink?: boolean; music?: boolean } = {}) {
   drawPerson(c, x, y, { ...DEFAULT_AVATAR, ...av }, opts);
 }
 /** visitante genérico na reunião */

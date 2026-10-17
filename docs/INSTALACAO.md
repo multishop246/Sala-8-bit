@@ -50,6 +50,12 @@ No Supabase, em **Authentication → URL Configuration**:
 
 Pronto: o login por **link no e-mail** já funciona.
 
+Para entrar também com **código de 6 dígitos** (necessário no app de computador), em **Authentication → Emails → Templates → Magic Link**, acrescente esta linha ao texto do e-mail:
+
+```
+Ou digite este código: {{ .Token }}
+```
+
 > O e-mail que vem com o Supabase tem um limite baixo de envios por hora, bom para começar. Se a equipe for maior ou os links demorarem, configure um SMTP gratuito (Brevo, Resend etc.) em **Authentication → Emails → SMTP Settings**.
 
 ### Login com Google (opcional)
@@ -66,6 +72,10 @@ Pronto: o login por **link no e-mail** já funciona.
 3. Em **Configurações → Convites**, gere o link e mande para a equipe. Para o gestor, gere um convite do tipo **Gestor**.
 
 ---
+
+## App de computador
+
+Depois que o site estiver no ar, gere os instaladores no seu fork: **Actions → App de computador → Run workflow**. Em alguns minutos aparece um Release com o instalador para Windows e para macOS. Se você publicou em outro lugar, defina `VITE_DOWNLOAD_URL` na Vercel com o link da página de download. Detalhes em [APP-COMPUTADOR.md](APP-COMPUTADOR.md).
 
 ## Instagram automático (opcional)
 
@@ -88,7 +98,7 @@ O token de longa duração vence de tempos em tempos; quando vencer, gere outro 
 
 **Posso usar meu próprio domínio?** Sim, em Vercel → Settings → Domains. Depois atualize a Site URL e as Redirect URLs do Supabase.
 
-**Atualizando para uma versão nova:** rode no SQL Editor só os arquivos novos da pasta `supabase/migrations`, em ordem (da 0.1 para a 0.4: `0003_sala_ao_vivo.sql`, `0004_tarefas_chat.sql` e `0005_mural_relatorio.sql`).
+**Atualizando para uma versão nova:** rode no SQL Editor só os arquivos novos da pasta `supabase/migrations`, em ordem (da 0.1 para a 0.5: `0003_sala_ao_vivo.sql`, `0004_tarefas_chat.sql`, `0005_mural_relatorio.sql` e `0006_app_computador.sql`).
 
 **Como atualizo para uma versão nova?** No seu fork, clique em **Sync fork**. A Vercel publica sozinha. Se a versão trouxer arquivos novos em `supabase/migrations`, rode só os novos no SQL Editor, em ordem.
 

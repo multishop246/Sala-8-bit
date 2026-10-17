@@ -300,6 +300,11 @@ function Regras() {
       </div>
       <div className="field"><label htmlFor="ia">Apps de IA (contam como produtivos e dão multiplicador com agentes)</label><input id="ia" defaultValue={list(s.apps_ia)} onBlur={e => setS({ ...s, apps_ia: parse(e.target.value) })} /></div>
       <div className="field"><label htmlFor="co">Apps de comunicação</label><input id="co" defaultValue={list(s.apps_comunicacao)} onBlur={e => setS({ ...s, apps_comunicacao: parse(e.target.value) })} /></div>
+      <h3 style={{ marginTop: 6 }}>App de computador</h3>
+      <p className="small muted">O app lê o título da aba do navegador <b>só no computador</b> para saber a categoria da página, e envia apenas a categoria. Os apps de cada função ficam em "Funções e tarefas".</p>
+      <div className="field"><label htmlFor="st">Sites de trabalho (contam como produtivos)</label><textarea id="st" defaultValue={list(s.sites_trabalho || [])} onBlur={e => setS({ ...s, sites_trabalho: parse(e.target.value) })} /></div>
+      <div className="field"><label htmlFor="sr">Sites de referência criativa</label><textarea id="sr" defaultValue={list(s.sites_referencia || [])} onBlur={e => setS({ ...s, sites_referencia: parse(e.target.value) })} /></div>
+      <div className="field"><label htmlFor="se">E-mail (conta como comunicação)</label><input id="se" defaultValue={list(s.sites_email || [])} onBlur={e => setS({ ...s, sites_email: parse(e.target.value) })} /></div>
       <div className="field"><label htmlFor="pf">Palavras que sinalizam assunto fora da demanda no chat</label><textarea id="pf" defaultValue={list(s.palavras_fora_do_assunto)} onBlur={e => setS({ ...s, palavras_fora_do_assunto: parse(e.target.value) })} /></div>
       <div><button className="cta" disabled={busy} onClick={() => run(() => db.updateWorkspace(ws.id, { settings: s }), 'Regras salvas')}>Salvar regras</button></div>
     </div>

@@ -1,7 +1,7 @@
 // Sala ao vivo com o Supabase: leitura, mudanças em tempo real e presença (quem está com o site aberto).
 import { supabase } from './supabase';
 import type {
-  AttentionCall, BoardSnapshot, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask,
+  AttentionCall, BoardSnapshot, DayApp, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask,
   OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote
 } from './types';
 
@@ -96,3 +96,8 @@ export const gloryScores = (wsId: string, month: string) => rpc<GloryScore[]>('g
 export const daySummary = (wsId: string, day: string) => rpc<DaySummary[]>('day_summary', { p_ws: wsId, p_day: day });
 export const myTimeLog = async (wsId: string, userId: string, day: string) =>
   check(await supabase.from('task_time_log').select('task_id,seconds').eq('workspace_id', wsId).eq('user_id', userId).eq('day', day)) as TimeLogRow[];
+
+// app de computador
+export const createAgentToken = (wsId: string, device: string, platform: string) => rpc<string>('create_agent_token', { p_ws: wsId, p_device: device, p_platform: platform });
+export const dayApps = (wsId: string, userId: string, day: string) => rpc<DayApp[]>('day_apps', { p_ws: wsId, p_user: userId, p_day: day });
+export const backendInfo = () => ({ url: import.meta.env.VITE_SUPABASE_URL as string, key: import.meta.env.VITE_SUPABASE_ANON_KEY as string });

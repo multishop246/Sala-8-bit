@@ -46,4 +46,10 @@ export async function signInEmail(email: string) {
   if (error) throw error;
   return false;
 }
+/** Entrar com o código de 6 dígitos do e-mail (útil no app de computador e no celular). */
+export async function verifyEmailCode(email: string, token: string) {
+  if (isDemo) return demoLogin(true);
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) throw new Error(/expired|invalid/i.test(error.message) ? 'Código inválido ou vencido. Peça outro.' : error.message);
+}
 export const signOut = async () => { if (isDemo) return demoLogin(false); await supabase.auth.signOut(); };

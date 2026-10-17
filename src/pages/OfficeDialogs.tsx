@@ -13,6 +13,7 @@ import { Card } from '../board/Board';
 import { titleThemeOf } from '../glory/glory';
 import { buildReport, reportName } from '../report/report';
 import { canPickFolder, pickFolder, saveFile, savedFolderName } from '../report/save';
+import * as desktop from '../lib/desktop';
 
 export const nextSaturday = () => { let d = todayStr(); while (dow(d) !== 6) d = addDays(d, 1); return d; };
 
@@ -104,16 +105,23 @@ export function ReportDialog({ onClose, ended }: { onClose: () => void; ended: b
   const [folder, setFolder] = useState<string | null>(null);
   const [state, setState] = useState<'idle' | 'busy' | 'done'>('idle');
   const [msg, setMsg] = useState('');
-  useEffect(() => { savedFolderName().then(setFolder); }, []);
+  const app = desktop.inApp();
+  useEffect(() => { if (app) desktop.agentInfo().then(i => setFolder(i.pasta)).catch(() => {}); else savedFolderName().then(setFolder); }, [app]);
   const day = todayStr();
   const name = reportName(day, me.display_name || 'Relatório');
   const go = async () => {
     setState('busy');
     try {
-      const [sum, log] = await Promise.all([live.daySummary(ws.id, day), live.myTimeLog(ws.id, me.user_id, day)]);
-      const blob = await buildReport({ ws, me, day, summary: sum.find(s => s.user_id === me.user_id), timeLog: log, board: L.board, catalog, endedAt: ended ? new Date() : null });
-      const r = await saveFile(blob, name);
-      setMsg(r.where === 'pasta' ? `Salvo na pasta "${r.folder}".` : 'O arquivo foi baixado.');
+      const [sum, log, apps] = await Promise.all([live.daySummary(ws.id, day), live.myTimeLog(ws.id, me.user_id, day), live.dayApps(ws.id, me.user_id, day).catch(() => [])]);
+      const blob = await buildReport({ ws, me, day, summary: sum.find(s => s.user_id === me.user_id), timeLog: log, board: L.board, catalog, endedAt: ended ? new Date() : null, apps });
+      if (app) {
+        if (!folder) { const f = await desktop.chooseFolder(); if (!f) { setState('idle'); return; } setFolder(f); }
+        const path = await desktop.saveReportInApp(name, blob);
+        setMsg(`Salvo em ${path}`);
+      } else {
+        const r = await saveFile(blob, name);
+        setMsg(r.where === 'pasta' ? `Salvo na pasta "${r.folder}".` : 'O arquivo foi baixado.');
+      }
       setState('done');
     } catch (e) { setMsg((e as Error).message); setState('idle'); }
   };
@@ -122,8 +130,9 @@ export function ReportDialog({ onClose, ended }: { onClose: () => void; ended: b
       {ended && <p className="ok">Expediente encerrado. Até amanhã!</p>}
       <p className="muted">O relatório traz o tempo em cada tarefa, as entregas, reuniões, pausas e a colaboração do dia, em PDF.</p>
       <div className="note">Arquivo: <b>{name}</b><br />
-        {canPickFolder() ? <>Pasta: <b>{folder || 'nenhuma escolhida (vai para Downloads)'}</b> <button className="linkbtn" onClick={async () => { const f = await pickFolder(); if (f) setFolder(f); }}>{folder ? 'Trocar pasta' : 'Escolher pasta'}</button></>
-          : <>Neste navegador o arquivo vai para a pasta de Downloads. No Chrome ou no Edge do computador dá para escolher a pasta; no app de computador (versão 0.5) ele salva sozinho na pasta do cadastro.</>}
+        {app ? <>Pasta: <b>{folder || 'escolha na primeira vez'}</b> <button className="linkbtn" onClick={async () => { const f = await desktop.chooseFolder(); if (f) setFolder(f); }}>{folder ? 'Trocar pasta' : 'Escolher pasta'}</button></>
+          : canPickFolder() ? <>Pasta: <b>{folder || 'nenhuma escolhida (vai para Downloads)'}</b> <button className="linkbtn" onClick={async () => { const f = await pickFolder(); if (f) setFolder(f); }}>{folder ? 'Trocar pasta' : 'Escolher pasta'}</button></>
+          : <>Neste navegador o arquivo vai para a pasta de Downloads. No Chrome ou no Edge do computador dá para escolher a pasta; no app de computador ele salva direto na pasta escolhida.</>}
       </div>
       {msg && <p className={state === 'done' ? 'ok' : 'err'}>{msg}</p>}
       <div className="btns"><button className="cta" disabled={state === 'busy'} onClick={go}>{state === 'busy' ? 'Gerando…' : state === 'done' ? 'Gerar de novo' : 'Gerar relatório'}</button><button className="ghost" onClick={onClose}>Fechar</button></div>

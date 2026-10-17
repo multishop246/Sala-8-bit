@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "A janela do escritório (site da empresa ou a tela inicial) pode chamar só os comandos do app de computador.",
+  "windows": ["main"],
+  "remote": { "urls": ["https://*", "http://localhost:*", "http://127.0.0.1:*"] },
+  "permissions": [
+    "core:default",
+    "allow-agent-info", "allow-set-office-url", "allow-change-office", "allow-agent-pair",
+    "allow-agent-unpair", "allow-choose-folder", "allow-save-report"
+  ]
+}

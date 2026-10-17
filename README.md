@@ -6,7 +6,7 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 
 > **Experimente sem instalar:** abra o site sem configurar nada e clique em **Experimentar a demonstração**. Tudo roda no navegador, com uma equipe de exemplo.
 
-## O que já funciona (versão 0.4)
+## O que já funciona (versão 0.5)
 
 - Login com Google ou link por e-mail, sem senha
 - Criação do escritório da empresa, com endereço próprio (`/w/sua-equipe`)
@@ -36,13 +36,15 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 - **SABADÃO:** quadro na parede com quem trabalha no sábado; folga leva as entregas daquele sábado para segunda
 - **Roupas temáticas** do mês (Outubro Rosa, Halloween, Natal, festa junina, Carnaval, cores dos meses), escolhidas em "Sua mesa", com uma variação diferente para cada pessoa
 - **Quadro do Instagram** com um rostinho por seguidor e confete a cada 100 (atualização manual ou automática pela API)
+- **App de computador (Windows e macOS):** o escritório numa janela própria + medição do app em foco, categoria das páginas (calculada no computador), ociosidade, música (fone no personagem) e agentes de IA (robozinho na mesa e multiplicador de +0,5× por agente extra). Painel do dia com produtivo, referência, comunicação, distração, ocioso e aproveitamento; cada pessoa vê os próprios apps. Veja [docs/APP-COMPUTADOR.md](docs/APP-COMPUTADOR.md)
+- Quem fica ocioso dorme na mesa; o Mestre da IA do Mural passa a contar
 - **Captação:** quem está na etapa de captação de um vídeo anda pela sala com a câmera, soltando flashes
 - Funciona no computador e no celular, e pode ser instalado como app (PWA)
 - Segurança no banco: cada empresa só enxerga os próprios dados (Row Level Security, testado em `scripts/test-db.mjs`)
 
 ## Próximas versões
 
-Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Falta a versão 0.5: o app de computador (Windows e macOS) que mede o app em foco.
+Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Todas as etapas do roteiro estão prontas. Próximos passos sugeridos em [docs/ROTEIRO.md](docs/ROTEIRO.md).
 
 O protótipo visual completo, com todas as ideias, está em [`prototype/prototipo-v1.html`](prototype/prototipo-v1.html) (abra no navegador).
 
@@ -58,6 +60,7 @@ cp .env.example .env.local   # preencha com o seu Supabase (ou deixe vazio e use
 npm run dev                  # http://localhost:5173
 npm run build                # gera dist/
 npm run test:db              # testa as migrações e as regras de segurança num Postgres embutido
+cd desktop && npm test       # testa a classificação do app de computador (Rust)
 ```
 
 - `src/` React + TypeScript + Vite. `src/game/` tem os sprites em pixel art e a sala.

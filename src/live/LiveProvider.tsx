@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as live from '../lib/live';
 import { useToast } from '../components/Toast';
 import { useWs } from '../lib/workspace';
+import * as desktop from '../lib/desktop';
 import { assignTitles, monthStart, titleThemeOf, type GloryCat } from '../glory/glory';
 import { THEME, themesNow } from '../game/themes';
 import type { Avatar, InstagramStats, SaturdayShift, AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status } from '../lib/types';
@@ -25,6 +26,13 @@ export interface PersonView {
   cafeLeft: number;   // segundos restantes (negativo = passou do limite)
   lunchDone: boolean;
   meeting: Meeting | null;
+  /** dados do app de computador (quando a pessoa usa o app) */
+  agentOn: boolean;
+  app: string | null;
+  appCat: string | null;
+  music: boolean;
+  agents: number;
+  idle: boolean;
 }
 
 interface LiveCtx {
@@ -106,6 +114,24 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       live.setState(ws.id, 'trabalhando', todayStr(), device).then(reload).catch(e => toast(e.message));
   }, [snap, me.user_id, ws.id, device, reload, toast]);
 
+  // dentro do app de computador: liga a medição a esta conta e a este escritório
+  useEffect(() => {
+    if (!desktop.inApp() || me.kind !== 'membro' || !me.consent_at) return;
+    (async () => {
+      try {
+        const info = await desktop.agentInfo();
+        const key = 'sala8bit.agent.ws';
+        let last: string | null = null; try { last = localStorage.getItem(key); } catch { /* */ }
+        if (info.pareado && last === ws.id + ':' + me.user_id) return;
+        const b = live.backendInfo();
+        if (!b.url) return; // demonstração: não há servidor para receber
+        const token = await live.createAgentToken(ws.id, info.aparelho, info.plataforma);
+        await desktop.agentPair(b.url, b.key, token);
+        try { localStorage.setItem(key, ws.id + ':' + me.user_id); } catch { /* */ }
+      } catch (e) { toast('App de computador: ' + (e as Error).message); }
+    })();
+  }, [ws.id, me.user_id, me.kind, me.consent_at, toast]);
+
   // aviso quando alguém chama sua atenção
   const seenCalls = useRef(new Set<string>());
   const firstLoad = useRef(true);
@@ -148,16 +174,19 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const meetingsOpen = (snap?.meetings || []).map(m => ({ ...m, people: (snap?.meetingMembers || []).filter(x => x.meeting_id === m.id).map(x => x.user_id) }));
     const views: PersonView[] = ready.map(m => {
       const status = snap?.statuses.find(s => s.user_id === m.user_id) || null;
-      const on = !!online[m.user_id];
+      const agentOn = !!status?.agent_seen_at && now - new Date(status.agent_seen_at).getTime() < 150000;
+      const on = !!online[m.user_id] || agentOn;
       const st = status?.state || 'fora';
       const shown: MemberState = st === 'encerrado' ? 'encerrado' : on ? (st === 'fora' ? 'trabalhando' : st) : (st === 'cafe' || st === 'almoco' ? st : 'fora');
       const mine = (snap?.pauses || []).filter(p => p.user_id === m.user_id);
       const cafeUsed = mine.filter(p => p.kind === 'cafe').reduce((s, p) => s + ((p.ended_at ? new Date(p.ended_at).getTime() : now) - new Date(p.started_at).getTime()) / 1000, 0);
       return {
-        member: m, status, online: on, device: online[m.user_id]?.device || status?.device || 'computador', shown,
+        member: m, status, online: on, device: online[m.user_id]?.device || (agentOn ? 'computador' : status?.device || 'computador'), shown,
         since: status ? new Date(status.since).getTime() : now, cafeUsed, cafeLeft: budget - cafeUsed,
         lunchDone: mine.some(p => p.kind === 'almoco'),
-        meeting: status?.meeting_id ? meetingsOpen.find(x => x.id === status.meeting_id) || null : null
+        meeting: status?.meeting_id ? meetingsOpen.find(x => x.id === status.meeting_id) || null : null,
+        agentOn, app: agentOn ? status?.app_now || null : null, appCat: agentOn ? status?.app_cat || null : null,
+        music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0, idle: agentOn && !!status?.idle
       };
     });
     const gestor = ready.find(m => m.kind === 'gestor');

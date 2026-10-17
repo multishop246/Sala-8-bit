@@ -55,6 +55,19 @@ async function tick(wsId: string) {
       }
     }
   }
+  // app de computador dos colegas: manda o minuto atual pelo mesmo caminho do app de verdade
+  let toks: Record<string, string> = {}; try { toks = JSON.parse(localStorage.getItem('sala8bit.demo.tokens') || '{}'); } catch { /* */ }
+  const APPN: Record<string, string[]> = { [BOT(0)]: ['Canva', 'mLabs', 'Navegando na internet'], [BOT(1)]: ['Figma', 'Photoshop', 'Illustrator'], [BOT(2)]: ['Navegando na internet', 'Excel', 'Claude'], [BOT(3)]: ['Premiere Pro', 'After Effects'], [BOT(4)]: ['Word', 'Notion', 'ChatGPT'], [BOT(5)]: ['ClickUp', 'HubSpot', 'WhatsApp'] };
+  const mark = new Date(); mark.setSeconds(0, 0);
+  for (const b of bots) {
+    const s = sOf(b.id); const tk = toks[b.id];
+    if (!s || !tk || b.gestor || !APPN[b.id]) continue;
+    const r = Math.random();
+    const cat = r < 0.7 ? 'prod' : r < 0.82 ? 'ref' : r < 0.9 ? 'com' : r < 0.95 ? 'dis' : 'idle';
+    const app = cat === 'ref' ? 'Navegando na internet' : pick(APPN[b.id]);
+    const agents = b.id === BOT(2) ? 2 : b.id === BOT(1) && Math.random() < 0.5 ? 1 : 0;
+    await act(b.id, 'agent_report', { p_token: tk, p_minutes: JSON.stringify([{ m: mark.toISOString(), app, cat, agents, music: b.id === BOT(0) || b.id === BOT(4) && Math.random() < 0.5 }]) });
+  }
   // o Instagram ganha seguidores aos poucos
   if (chance(0.6)) await asAdmin(`update instagram_stats set followers = followers + $2, updated_at = now() where workspace_id = $1`, [wsId, 1 + Math.floor(Math.random() * 3)]), emit();
   // votações abertas

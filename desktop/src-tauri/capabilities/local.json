@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "local",
+  "description": "A tela inicial do app (escolher o endereço do escritório).",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-set-office-url",
+    "allow-agent-info"
+  ]
+}

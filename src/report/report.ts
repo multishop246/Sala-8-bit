@@ -1,9 +1,9 @@
 // Relatório do dia em PDF.
-import type { BoardSnapshot, CatalogItem, DaySummary, Member, TimeLogRow, Workspace } from '../lib/types';
+import type { BoardSnapshot, CatalogItem, DayApp, DaySummary, Member, TimeLogRow, Workspace } from '../lib/types';
 
 export interface ReportInput {
   ws: Workspace; me: Member; day: string; summary: DaySummary | undefined; timeLog: TimeLogRow[];
-  board: BoardSnapshot; catalog: CatalogItem[]; endedAt: Date | null;
+  board: BoardSnapshot; catalog: CatalogItem[]; endedAt: Date | null; apps?: DayApp[];
 }
 const fmtD = (m: number) => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}`;
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -48,6 +48,16 @@ export async function buildReport(i: ReportInput): Promise<Blob> {
   });
   y += 44;
   if ((s?.cafe_min || 0) > cafeMax) { line(`O café passou ${(s!.cafe_min - cafeMax)} min do limite do dia (conta como distração).`, 9, false, [198, 47, 69]); gap(2); }
+  // app de computador
+  if (s && s.rastreado_min > 0) {
+    const base = s.produtivo_min - s.bonus_ia_min, den = base + s.com_min + s.dis_min + s.ocioso_min;
+    line('Tempo no computador', 12, true); gap(1);
+    line(`Produtivo: ${fmtD(s.produtivo_min)}${s.bonus_ia_min ? ` (inclui +${fmtD(s.bonus_ia_min)} do multiplicador de IA)` : ''} · Referência criativa: ${fmtD(s.ref_min)} · Comunicação: ${fmtD(s.com_min)} · Distração: ${fmtD(s.dis_min)} · Ocioso: ${fmtD(s.ocioso_min)} · Com IA rodando: ${fmtD(s.ia_min)}`, 10);
+    if (den) line(`Aproveitamento: ${Math.min(100, Math.round(base / den * 100))}%`, 10, true);
+    const NAMES: Record<string, string> = { prod: 'produtivo', ref: 'referência', com: 'comunicação', dis: 'distração', idle: 'ocioso', ia: 'IA', meet: 'reunião', gestor: 'pausa do gestor', pausa: 'pausa' };
+    for (const a of (i.apps || []).slice(0, 12)) line(`• ${a.app} — ${fmtD(a.minutes)} (${NAMES[a.category] || a.category})`, 10);
+    gap(3);
+  }
   // tarefas trabalhadas
   const cat = new Map(i.catalog.map(c => [c.id, c.name]));
   line('Tarefas trabalhadas hoje', 12, true); gap(1);

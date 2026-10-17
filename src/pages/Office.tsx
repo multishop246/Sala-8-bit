@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as desktop from '../lib/desktop';
 import { Modal } from '../components/Modal';
 import { Board, Card } from '../board/Board';
 import { Chat, Thread } from '../chat/Chat';
@@ -168,6 +169,7 @@ function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, onReport, onDesk, 
           {!gestor && <button className="ghost" onClick={onReport}>Relatório do dia</button>}
         </>}
       </div>
+      {!gestor && <AgentLine on={view.agentOn} />}
       {!gestor && L.gestorName && <p className="small muted">"Pausa, {L.gestorName}": quando o gestor chama você para algo urgente fora do sistema. Conta como tempo produtivo.</p>}
     </div>
   );
@@ -257,4 +259,24 @@ function NowTask({ userId, onOpen }: { userId: string; onOpen?: (id: string) => 
       {t ? <Card t={t} cat={cat} compact onOpen={() => onOpen?.(t.id)} /> : <p className="small muted">Nenhuma tarefa em execução.</p>}
     </div>
   );
+}
+
+function AgentLine({ on }: { on: boolean }) {
+  const [info, setInfo] = useState<desktop.AgentInfo | null>(null);
+  const app = desktop.inApp();
+  useEffect(() => {
+    if (!app) return;
+    const load = () => desktop.agentInfo().then(setInfo).catch(() => {});
+    load(); const i = window.setInterval(load, 10000);
+    return () => window.clearInterval(i);
+  }, [app]);
+  if (app && info) {
+    const a = info.agora;
+    return <p className="small agentline"><i className={'pdot ' + (a.conectado ? 'okc' : 'offc')} />
+      {a.conectado ? <>App de computador medindo{a.app ? <> · <b>{a.app}</b></> : null}{a.agents ? ` · IA ${a.agents}` : ''}{a.estado === 'encerrado' ? ' · pausado (expediente encerrado)' : ''}</>
+        : info.pareado ? <>App de computador sem conexão{a.pendentes ? ` · ${a.pendentes} min guardados para enviar` : ''}{a.erro ? <span className="muted"> ({a.erro})</span> : null}</>
+        : <>Conectando o app de computador…</>}</p>;
+  }
+  if (on) return <p className="small agentline"><i className="pdot okc" />App de computador conectado neste momento.</p>;
+  return <p className="small muted agentline">Use o <a href={desktop.DOWNLOAD_URL} target="_blank" rel="noreferrer">app de computador</a> (Windows e macOS) para medir o tempo produtivo automaticamente.</p>;
 }

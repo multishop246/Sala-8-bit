@@ -1,5 +1,5 @@
 // Mesmas funções de lib/live-supabase.ts, no Postgres da demonstração.
-import type { DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask, OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote } from '../lib/types';
+import type { DayApp, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask, OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote } from '../lib/types';
 import { DEMO_USER, asUser, rpc as rawRpc } from './pg';
 import { botTick } from './bots';
 
@@ -75,3 +75,7 @@ export const setInstagram = (wsId: string, handle: string, followers: number) =>
 export const gloryScores = (wsId: string, month: string) => asUser<GloryScore>(me, `select * from glory_scores($1, $2)`, [wsId, month]);
 export const daySummary = (wsId: string, day: string) => asUser<DaySummary>(me, `select * from day_summary($1, $2)`, [wsId, day]);
 export const myTimeLog = (wsId: string, userId: string, day: string) => asUser<TimeLogRow>(me, `select task_id, seconds from task_time_log where workspace_id = $1 and user_id = $2 and day = $3`, [wsId, userId, day]);
+
+export const createAgentToken = async (wsId: string, device: string, platform: string) => (await asUser<{ t: string }>(me, `select create_agent_token($1,$2,$3) t`, [wsId, device, platform]))[0].t;
+export const dayApps = (wsId: string, userId: string, day: string) => asUser<DayApp>(me, `select * from day_apps($1,$2,$3)`, [wsId, userId, day]);
+export const backendInfo = () => ({ url: '', key: '' });

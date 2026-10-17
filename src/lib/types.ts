@@ -26,6 +26,10 @@ export interface WorkspaceSettings {
   apps_ia: string[];
   apps_comunicacao: string[];
   palavras_fora_do_assunto: string[];
+  sites_trabalho?: string[];
+  sites_referencia?: string[];
+  sites_email?: string[];
+  fuso?: string;
 }
 
 export interface Workspace {
@@ -95,7 +99,8 @@ export const profileDone = (m: Member) => !!m.display_name && !!m.consent_at;
 export type MemberState = 'fora' | 'trabalhando' | 'cafe' | 'almoco' | 'reuniao' | 'pausa_gestor' | 'encerrado';
 export type Device = 'computador' | 'celular';
 
-export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string; active_task_id?: string | null }
+export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string; active_task_id?: string | null;
+  app_now?: string | null; app_cat?: string | null; music?: boolean; agents?: number; idle?: boolean; agent_seen_at?: string | null }
 export interface Pause { id: string; workspace_id: string; user_id: string; kind: 'cafe' | 'almoco'; day: string; started_at: string; ended_at: string | null }
 export interface Meeting { id: string; workspace_id: string; subject: string; created_by: string; visitors: number; outsiders: number; started_at: string; ended_at: string | null }
 export interface MeetingMember { meeting_id: string; workspace_id: string; user_id: string; joined_at: string; left_at: string | null }
@@ -147,5 +152,9 @@ export interface NewTask { title: string; description: string; line_id: string; 
 export interface SaturdayShift { workspace_id: string; user_id: string; day: string; works: boolean; set_by: string | null; updated_at: string }
 export interface InstagramStats { workspace_id: string; handle: string | null; followers: number; source: 'manual' | 'api'; updated_at: string }
 export interface GloryScore { user_id: string; ajudas: number; entregas: number; tarefa_min: number; ia_min: number }
-export interface DaySummary { user_id: string; tarefa_min: number; reuniao_min: number; cafe_min: number; almoco_min: number; entregas: number; ajudas: number; primeira_entrada: string | null }
+export interface DaySummary {
+  user_id: string; tarefa_min: number; reuniao_min: number; cafe_min: number; almoco_min: number; entregas: number; ajudas: number; primeira_entrada: string | null;
+  rastreado_min: number; produtivo_min: number; ref_min: number; com_min: number; dis_min: number; ocioso_min: number; ia_min: number; bonus_ia_min: number;
+}
+export interface DayApp { app: string; category: string; minutes: number }
 export interface TimeLogRow { task_id: string; seconds: number }
