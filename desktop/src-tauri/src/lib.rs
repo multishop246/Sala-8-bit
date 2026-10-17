@@ -3,6 +3,7 @@
 mod classify;
 mod config;
 mod tracker;
+mod activity;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};

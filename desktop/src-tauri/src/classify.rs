@@ -32,6 +32,8 @@ fn has_any(hay: &str, list: &[String]) -> bool {
 }
 /// nome do app para mostrar na sala (sem ".exe" e sem caminho)
 pub fn display_name(app: &str) -> String {
+    let clean: String = app.chars().filter(|c| !c.is_control()).collect();
+    let app = clean.as_str();
     let a = app.rsplit(['/', '\\']).next().unwrap_or(app);
     let a = a.strip_suffix(".exe").or_else(|| a.strip_suffix(".EXE")).unwrap_or(a);
     let a = a.strip_suffix(".app").unwrap_or(a);
@@ -58,24 +60,19 @@ pub fn classify(app: &str, title: &str, idle_secs: u64, agents: u32, cfg: &Confi
         if has_any(title, &cfg.sites_email) { "com" }
         else if has_any(title, &cfg.apps_ia) || has_any(title, &cfg.sites_trabalho) || has_any(title, &cfg.apps_trabalho) { "prod" }
         else if has_any(title, &cfg.sites_referencia) { "ref" }
-        else { "dis" }
+        else { "prod" }
     } else if norm(app).contains("sala 8-bit") { "com" }
+    else if matches!(norm(&display_name(app)).as_str(), "notepad" | "bloco de notas" | "windows notepad" | "notepad++") { "prod" }
     else if has_any(app, &cfg.apps_ia) || has_any(app, &cfg.apps_trabalho) { "prod" }
     else if has_any(app, &cfg.apps_comunicacao) { "com" }
     else { "dis" };
     Minute { app: shown, cat, music_hint }
 }
 
-/// Processos que contam como agentes de IA trabalhando (ex.: Claude Code, Codex).
-pub fn is_agent_process(name: &str, cmd: &str) -> bool {
-    let n = norm(&display_name(name));
-    let c = norm(cmd);
-    n == "claude" || n == "codex" || n == "aider" || c.contains("@anthropic-ai/claude-code") || c.contains("@openai/codex")
-}
 /// Apps de música abertos (o fone aparece no personagem).
 pub fn is_music_process(name: &str) -> bool {
     let n = norm(&display_name(name));
-    ["spotify", "music", "deezer", "tidal", "amazon music", "youtube music"].iter().any(|m| n == *m)
+    ["spotify", "spotify music", "music", "deezer", "tidal", "amazon music", "youtube music", "apple music", "applemusic"].iter().any(|m| n == *m)
 }
 
 #[cfg(test)]
@@ -102,7 +99,7 @@ mod tests {
         assert_eq!(m.app, WEB); assert_eq!(m.cat, "ref");
         assert_eq!(classify("msedge.exe", "Campanhas - Google Ads", 0, 0, &cfg()).cat, "prod");
         assert_eq!(classify("firefox", "Caixa de entrada - Gmail", 0, 0, &cfg()).cat, "com");
-        assert_eq!(classify("Safari", "Notícias do dia", 0, 0, &cfg()).cat, "dis");
+        assert_eq!(classify("Safari", "Notícias do dia", 0, 0, &cfg()).cat, "prod");
         assert_eq!(classify("Arc", "ChatGPT", 0, 0, &cfg()).cat, "prod");
     }
     #[test] fn ociosidade_e_ia() {
@@ -117,10 +114,15 @@ mod tests {
     }
     #[test] fn acentos() { assert!(has_any("Gerenciador de Anúncios", &["gerenciador de anuncios".into()])); }
     #[test] fn agentes_e_musica() {
-        assert!(is_agent_process("claude", ""));
-        assert!(is_agent_process("node", "node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"));
-        assert!(!is_agent_process("node", "node server.js"));
         assert!(is_music_process("Spotify.exe"));
         assert!(classify("Google Chrome", "Música - YouTube Music", 0, 0, &cfg()).music_hint);
+    }
+    #[test] fn notes_browser_and_windows_nulls() {
+        assert_eq!(display_name("Notepad.exe\0\0"), "Notepad");
+        assert_eq!(classify("Notepad.exe\0", "anotacoes", 0, 0, &cfg()).cat, "prod");
+        assert_eq!(classify("opera.exe", "Pesquisa", 0, 0, &cfg()).cat, "prod");
+        assert!(is_music_process("Spotify.exe\0"));
+        assert!(is_music_process("Spotify Music"));
+        assert_eq!(classify("Codex.exe", "Codex", 400, 0, &cfg()).cat, "idle");
     }
 }
