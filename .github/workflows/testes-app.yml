@@ -28,7 +28,7 @@ jobs:
         run: cargo test --lib
       - name: Dependências desktop
         working-directory: desktop
-        run: npm ci
+        run: npm install
       - name: Gerar instalador Windows para testes
         working-directory: desktop
         run: npm run build -- --bundles nsis
