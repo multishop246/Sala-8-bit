@@ -110,7 +110,7 @@ export function TaskDialog({ id, onClose, onChat }: { id: string; onClose: () =>
           const on = to.includes(m.user_id);
           return <button key={m.user_id} type="button" className="opt" aria-pressed={on}
             onClick={() => setTo(mode === 'transfer' ? [m.user_id] : on ? to.filter(x => x !== m.user_id) : [...to, m.user_id])}>
-            <Avatar avatar={m.avatar} size={24} /><span><b style={{ fontSize: 13 }}>{m.display_name}</b><br />{L.view(m.user_id)?.online ? 'online' : 'offline'}</span></button>;
+            <Avatar avatar={L.look(m)} size={24} /><span><b style={{ fontSize: 13 }}>{m.display_name}</b><br />{L.view(m.user_id)?.online ? 'online' : 'offline'}</span></button>;
         })}</div>
         {mode === 'help' && <><label className="lbl" htmlFor="hn">No que você precisa de ajuda?</label><textarea id="hn" value={text} onChange={e => setText(e.target.value)} placeholder="Obrigatório" /></>}
         <div className="btns"><button className="cta sm" disabled={busy || !to.length || (mode === 'help' && text.trim().length < 3)}

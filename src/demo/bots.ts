@@ -1,5 +1,5 @@
 // Colegas simulados da demonstração. Eles usam as mesmas funções do banco que uma pessoa usaria.
-import { BOT, DEMO_USER, asAdmin, rpc } from './pg';
+import { BOT, DEMO_USER, asAdmin, emit, rpc } from './pg';
 import { PEOPLE } from './seed';
 
 const ME = DEMO_USER.id;
@@ -55,6 +55,8 @@ async function tick(wsId: string) {
       }
     }
   }
+  // o Instagram ganha seguidores aos poucos
+  if (chance(0.6)) await asAdmin(`update instagram_stats set followers = followers + $2, updated_at = now() where workspace_id = $1`, [wsId, 1 + Math.floor(Math.random() * 3)]), emit();
   // votações abertas
   for (const c of openContests) for (const b of bots) {
     if (b.gestor || votes.some(v => v.contest_id === c.id && v.user_id === b.id) || !chance(0.2)) continue;

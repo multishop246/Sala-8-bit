@@ -9,6 +9,10 @@ export interface Avatar {
   acc: string;
   out: string;
   oc: string;
+  /** roupa temática escolhida (só vale no mês dela) */
+  theme?: string | null;
+  /** posição na equipe, para cada um ter uma variação diferente da roupa temática */
+  vi?: number;
 }
 
 export interface Schedule { e1: string; s1: string; e2: string; s2: string }
@@ -104,6 +108,8 @@ export interface LiveSnapshot {
   meetingMembers: MeetingMember[]; // de reuniões abertas, ainda dentro
   calls: AttentionCall[];     // abertas, envolvendo você
   board: BoardSnapshot;
+  saturdays: SaturdayShift[];     // de hoje em diante
+  instagram: InstagramStats | null;
 }
 export type OnlineMap = Record<string, { device: Device }>;
 
@@ -136,3 +142,10 @@ export interface BoardSnapshot {
   messages: Message[];      // suas conversas, últimos 30 dias
 }
 export interface NewTask { title: string; description: string; line_id: string; area_id: string; type_id: string | null; dir_to: string | null; due_date: string; due_time: string | null; est_min: number }
+
+// ------------------------------------------------------------- 0.4: mural, painel, SABADÃO, Instagram
+export interface SaturdayShift { workspace_id: string; user_id: string; day: string; works: boolean; set_by: string | null; updated_at: string }
+export interface InstagramStats { workspace_id: string; handle: string | null; followers: number; source: 'manual' | 'api'; updated_at: string }
+export interface GloryScore { user_id: string; ajudas: number; entregas: number; tarefa_min: number; ia_min: number }
+export interface DaySummary { user_id: string; tarefa_min: number; reuniao_min: number; cafe_min: number; almoco_min: number; entregas: number; ajudas: number; primeira_entrada: string | null }
+export interface TimeLogRow { task_id: string; seconds: number }

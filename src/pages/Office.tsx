@@ -10,9 +10,16 @@ import { Room } from '../game/Room';
 import { fmtClock, fmtDur, STATE_COLOR, STATE_LABEL, useLive, type PersonView } from '../live/LiveProvider';
 import type { MemberState } from '../lib/types';
 import { useWs } from '../lib/workspace';
+import { DayPanel } from '../dash/DayPanel';
+import { MuralTab } from '../glory/MuralTab';
+import { InstagramDialog, MyDeskDialog, ReportDialog, SabadoDialog, nextSaturday } from './OfficeDialogs';
+import { isOpen } from '../board/logic';
+import { TITLES } from '../game/themes';
 
-type Dlg = { kind: 'copa' } | { kind: 'meet' } | { kind: 'person'; id: string } | { kind: 'end' } | null;
-type Tab = 'quadro' | 'chat';
+const CAPTURE = /capta[çc]|grava[çc][aã]o d|gravar|filmag|ensaio|making of|bastidores|sess[aã]o de fotos|fotografar/i;
+
+type Dlg = { kind: 'copa' } | { kind: 'meet' } | { kind: 'person'; id: string } | { kind: 'end' } | { kind: 'sabado' } | { kind: 'instagram' } | { kind: 'mydesk' } | { kind: 'report'; ended: boolean } | null;
+type Tab = 'quadro' | 'chat' | 'painel' | 'mural';
 
 export function Office() {
   const { ws, me, members } = useWs();
@@ -48,6 +55,15 @@ export function Office() {
 
   const sorted = [...L.views].sort((a, b) => (a.member.kind === b.member.kind ? (a.member.desk || 0) - (b.member.desk || 0) : a.member.kind === 'gestor' ? -1 : 1));
   const freeDesks = ws.desks - ready.filter(m => m.kind === 'membro' && m.desk).length;
+  const rec = ws.settings.recursos || { sabadao: false, datas_comemorativas: false, mural_gloria: false, instagram: false };
+  const colorOf = (id: string | null) => ((members.find(m => m.user_id === id)?.avatar as { oc?: string })?.oc) || '#ffe27a';
+  const today = new Date(L.now).toLocaleDateString('sv-SE');
+  const notes = L.board.tasks.filter(t => isOpen(t) || (t.done_at && new Date(t.done_at).toLocaleDateString('sv-SE') === today))
+    .map(t => ({ col: (t.col === 'afazer' ? 0 : t.col === 'fazendo' ? 1 : 2) as 0 | 1 | 2, color: colorOf(t.owner || t.creator) }));
+  const sat = nextSaturday();
+  const activeTask = (uid: string) => { const a = L.view(uid)?.status?.active_task_id; return L.board.tasks.find(t => t.id === a && t.col === 'fazendo'); };
+  const goTab = (t: Tab) => { setTab(t); setTimeout(() => document.getElementById('tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
+  const person = (id: string) => setDlg(id === me.user_id && me.kind === 'membro' ? { kind: 'mydesk' } : { kind: 'person', id });
 
   return (
     <>
@@ -57,13 +73,13 @@ export function Office() {
       </div>}
       <div className="grid2">
         <aside className="stack">
-          <MyCard view={mine} label={label} onCopa={copa} onMeet={meetingRoom} onBoss={boss} onEnd={() => setDlg({ kind: 'end' })} inMeeting={!!myMeeting} gestor={gestor} />
+          <MyCard view={mine} label={label} onCopa={copa} onMeet={meetingRoom} onBoss={boss} onEnd={() => setDlg({ kind: 'end' })} onReport={() => setDlg({ kind: 'report', ended: false })} onDesk={() => setDlg({ kind: 'mydesk' })} inMeeting={!!myMeeting} gestor={gestor} />
           <div className="panel">
             <h3>Equipe · {L.views.filter(v => v.online).length} online</h3>
             {sorted.map(v => (
               <button key={v.member.user_id} className="mrow" style={{ width: '100%', background: 'none', border: 0, borderBottom: '1px solid var(--line)', textAlign: 'left', color: 'inherit' }} onClick={() => setDlg({ kind: 'person', id: v.member.user_id })}>
-                <Avatar avatar={v.member.avatar} crown={v.member.kind === 'gestor'} size={30} />
-                <span className="who"><b>{v.member.display_name}{v.member.user_id === me.user_id && <span className="chip acc" style={{ marginLeft: 6 }}>você</span>}</b>
+                <Avatar avatar={L.look(v.member)} crown={v.member.kind === 'gestor'} size={30} />
+                <span className="who"><b>{v.member.display_name}{v.member.user_id === me.user_id && <span className="chip acc" style={{ marginLeft: 6 }}>você</span>}</b>{L.titles[v.member.user_id] && <span className="gmain small">★ {TITLES[L.titles[v.member.user_id]].n}</span>}
                   <span className="state"><i style={{ background: v.shown === 'fora' || v.shown === 'encerrado' ? '#555c70' : STATE_COLOR[v.shown] }} />
                     {v.member.kind === 'gestor' && v.shown === 'trabalhando' ? 'No escritório' : label(v.shown)}{v.online && v.device === 'celular' ? ' · celular' : ''}</span></span>
                 <span className="small muted mono">{v.shown === 'cafe' ? (v.cafeLeft < 0 ? `+${Math.ceil(-v.cafeLeft / 60)}m` : fmtClock(v.cafeLeft)) : v.shown !== 'fora' ? fmtDur(L.now - v.since) : ''}</span>
@@ -74,14 +90,26 @@ export function Office() {
         </aside>
         <section className="stack">
           <Room desks={ws.desks} members={ready}
-            live={{ views: L.views, meetings: L.meetings, callsToMe: L.callsToMe, meId: me.user_id, now: L.now, gestorName: L.gestorName, taskTitle: uid => { const a = L.view(uid)?.status?.active_task_id; return L.board.tasks.find(t => t.id === a && t.col === 'fazendo')?.title || null; } }}
-            onPerson={id => setDlg({ kind: 'person', id })} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention} />
+            live={{
+              views: L.views, meetings: L.meetings, callsToMe: L.callsToMe, meId: me.user_id, now: L.now, gestorName: L.gestorName, look: L.look,
+              taskTitle: uid => activeTask(uid)?.title || null,
+              capturing: uid => { const t = activeTask(uid); return !!t && (t.etapa === 'captacao' || (!t.etapa && CAPTURE.test(t.title))); },
+              titles: rec.mural_gloria ? L.titles : {},
+              wall: { notes, instagram: rec.instagram ? (L.ready ? (L.instagram?.followers ?? 0) : null) : null, sabadao: !!rec.sabadao, mural: !!rec.mural_gloria },
+              sabado: ready.filter(m => m.kind === 'membro').map(m => ({ name: m.display_name || '', works: L.saturdays.find(x => x.user_id === m.user_id && x.day === sat)?.works ?? null })),
+              onSabado: () => setDlg({ kind: 'sabado' }), onInstagram: () => setDlg({ kind: 'instagram' }), onMural: () => goTab('mural')
+            }}
+            onPerson={person} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention} />
           <div className="panel" id="tabs">
             <div className="tabs" role="tablist">
               <button role="tab" aria-selected={tab === 'quadro'} onClick={() => setTab('quadro')}>Quadro de tarefas</button>
               <button role="tab" aria-selected={tab === 'chat'} onClick={() => setTab('chat')}>Chat{unreadTotal ? <span className="badge">{unreadTotal}</span> : null}</button>
+              <button role="tab" aria-selected={tab === 'painel'} onClick={() => setTab('painel')}>Painel do dia</button>
+              {rec.mural_gloria && <button role="tab" aria-selected={tab === 'mural'} onClick={() => setTab('mural')}>Mural da Glória</button>}
             </div>
             {tab === 'quadro' ? <Board openTask={openTask} setOpenTask={setOpenTask} onChat={openChat} />
+              : tab === 'painel' ? <DayPanel />
+              : tab === 'mural' ? <MuralTab />
               : <Chat withUser={chatWith} setWithUser={id => { setChatWith(id); setPresetTask(null); }} presetTask={presetTask} onOpenTask={id => { setTab('quadro'); setOpenTask(id); }} />}
           </div>
           <p className="small muted">Clique na <b>copa</b> para pausar, na <b>sala de reunião</b> para sinalizar uma reunião{L.gestorName ? <>, na <b>mesa de {L.gestorName}</b> para a pausa do gestor</> : null} e em um colega para ver o status ou chamar a atenção.</p>
@@ -98,15 +126,19 @@ export function Office() {
       {dlg?.kind === 'meet' && <MeetingDialog onClose={() => setDlg(null)} />}
       {dlg?.kind === 'person' && <PersonDialog view={L.view(dlg.id)} label={label} onClose={() => setDlg(null)} onChat={openChat} onTask={id => { setDlg(null); setTab('quadro'); setOpenTask(id); }} />}
       {dlg?.kind === 'end' && <Modal title="Encerrar expediente" onClose={() => setDlg(null)}>
-        <p className="muted">Você sai do escritório até amanhã. Se precisar voltar hoje, é só clicar em "Voltar ao trabalho". O relatório do dia chega na versão 0.4.</p>
-        <div className="btns"><button className="cta" onClick={async () => { setDlg(null); await L.act.setState('encerrado'); }}>Encerrar expediente</button><button className="ghost" onClick={() => setDlg(null)}>Cancelar</button></div>
+        <p className="muted">Você sai do escritório até amanhã e o relatório do dia é gerado em PDF. Se precisar voltar hoje, é só clicar em "Voltar ao trabalho".</p>
+        <div className="btns"><button className="cta" onClick={async () => { const ok = await L.act.setState('encerrado'); setDlg(ok ? { kind: 'report', ended: true } : null); }}>Encerrar expediente</button><button className="ghost" onClick={() => setDlg(null)}>Cancelar</button></div>
       </Modal>}
+      {dlg?.kind === 'sabado' && <SabadoDialog onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'instagram' && <InstagramDialog onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'mydesk' && <MyDeskDialog onClose={() => setDlg(null)} />}
+      {dlg?.kind === 'report' && <ReportDialog ended={dlg.ended} onClose={() => setDlg(null)} />}
     </>
   );
 }
 
-function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, inMeeting, gestor }: {
-  view?: PersonView; label: (s: MemberState) => string; onCopa: () => void; onMeet: () => void; onBoss: () => void; onEnd: () => void; inMeeting: boolean; gestor: boolean;
+function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, onReport, onDesk, inMeeting, gestor }: {
+  view?: PersonView; label: (s: MemberState) => string; onCopa: () => void; onMeet: () => void; onBoss: () => void; onEnd: () => void; onReport: () => void; onDesk: () => void; inMeeting: boolean; gestor: boolean;
 }) {
   const L = useLive();
   if (!view) return <div className="panel"><p className="muted">Entrando no escritório…</p></div>;
@@ -116,7 +148,7 @@ function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, inMeeting, gestor 
   return (
     <div className="panel me-card">
       <div className="me-head">
-        <Avatar avatar={m.avatar} crown={gestor} size={40} />
+        <Avatar avatar={L.look(m)} crown={gestor} size={40} />
         <div><b>{m.display_name}</b>
           <span className="state"><i style={{ background: STATE_COLOR[s] }} />{gestor && s === 'trabalhando' ? 'No escritório · acompanhando' : label(s)} · {fmtDur(L.now - view.since)}</span></div>
       </div>
@@ -127,11 +159,13 @@ function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, inMeeting, gestor 
       {!gestor && <NowTask userId={m.user_id} />}
       {over && !gestor && <p className="small" style={{ color: '#ff9aa8' }}>O café passou do limite do dia. O tempo extra conta como distração.</p>}
       <div className="btns">
-        {ended ? <button className="cta" onClick={() => L.act.setState('trabalhando')}>Voltar ao trabalho</button> : <>
+        {ended ? <><button className="cta" onClick={() => L.act.setState('trabalhando')}>Voltar ao trabalho</button><button className="ghost" onClick={onReport}>Relatório do dia</button></> : <>
           {!gestor && <button className={s === 'cafe' || s === 'almoco' ? 'cta' : 'ghost'} onClick={onCopa}>{s === 'cafe' ? 'Voltar do café' : s === 'almoco' ? 'Voltar do almoço' : 'Ir para a copa'}</button>}
           <button className={inMeeting ? 'cta' : 'ghost'} onClick={onMeet}>{inMeeting ? 'Sair da reunião' : 'Sinalizar reunião'}</button>
           {!gestor && L.gestorName && <button className={s === 'pausa_gestor' ? 'cta' : 'ghost'} onClick={onBoss}>{s === 'pausa_gestor' ? `Voltar da pausa` : `Pausa, ${L.gestorName}`}</button>}
           <button className="ghost" onClick={onEnd}>Encerrar expediente</button>
+          {!gestor && <button className="ghost" onClick={onDesk}>Sua mesa</button>}
+          {!gestor && <button className="ghost" onClick={onReport}>Relatório do dia</button>}
         </>}
       </div>
       {!gestor && L.gestorName && <p className="small muted">"Pausa, {L.gestorName}": quando o gestor chama você para algo urgente fora do sistema. Conta como tempo produtivo.</p>}
@@ -165,7 +199,7 @@ function MeetingDialog({ onClose }: { onClose: () => void }) {
           const on = sel.includes(v.member.user_id), ok = avail(v);
           return <button key={v.member.user_id} type="button" className="opt" aria-pressed={on} disabled={!ok}
             onClick={() => setSel(s => on ? s.filter(x => x !== v.member.user_id) : [...s, v.member.user_id])}>
-            <Avatar avatar={v.member.avatar} crown={v.member.kind === 'gestor'} size={24} /><span><b style={{ fontSize: 13 }}>{v.member.display_name}</b><br />{ok ? (on ? 'Vai participar' : 'Disponível') : STATE_LABEL[v.shown]}</span></button>;
+            <Avatar avatar={L.look(v.member)} crown={v.member.kind === 'gestor'} size={24} /><span><b style={{ fontSize: 13 }}>{v.member.display_name}</b><br />{ok ? (on ? 'Vai participar' : 'Disponível') : STATE_LABEL[v.shown]}</span></button>;
         })}</div></div>
       <div className="row">
         <div className="field"><label htmlFor="mv">Visitantes</label><select id="mv" value={vis} onChange={e => setVis(+e.target.value)}>{Array.from({ length: 16 }, (_, i) => <option key={i} value={i}>{i}</option>)}</select></div>
@@ -190,7 +224,7 @@ function PersonDialog({ view, label, onClose, onChat, onTask }: { view?: PersonV
   return (
     <Modal title={self ? 'Você' : m.display_name || ''} onClose={onClose}>
       <div className="me-head" style={{ gridTemplateColumns: '48px minmax(0,1fr)' }}>
-        <Avatar avatar={m.avatar} crown={m.kind === 'gestor'} size={48} />
+        <Avatar avatar={L.look(m)} crown={m.kind === 'gestor'} size={48} />
         <div><b>{m.display_name}</b>
           <span className="small muted">{m.kind === 'gestor' ? 'Gestor · acompanha a equipe' : [m.main_role, ...m.adj_roles].filter(Boolean).join(' · ')}</span><br />
           <span className="state"><i style={{ background: view.shown === 'fora' || view.shown === 'encerrado' ? '#555c70' : STATE_COLOR[view.shown] }} />

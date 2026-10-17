@@ -297,4 +297,57 @@ await t('0.3 · quem sai da equipe devolve a tarefa', async () => {
   await as(U1, () => q(`delete from members where workspace_id=$1 and user_id=$2`, [w4.id, U2]));
   const x = await tk(t2.id); if (x.col !== 'afazer' || x.owner) throw new Error(JSON.stringify(x));
 });
+
+// ------------------------------------------------------------ 0.4: mural, painel, SABADÃO, Instagram
+const V1 = 'b1111111-1111-1111-1111-111111111111', V2 = 'b2222222-2222-2222-2222-222222222222';
+await q(`insert into auth.users values ($1),($2)`, [V1, V2]);
+let w5, l5, d5, t5;
+const SAT = (() => { const d = new Date(Date.now() + 864e5); while (d.getUTCDay() !== 6) d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+await t('0.4 · equipe nova', async () => {
+  w5 = await as(V1, async () => (await q(`select * from create_workspace('Mural','mural')`)).rows[0]);
+  const im = await as(V1, async () => (await q(`select * from create_invite($1)`, [w5.id])).rows[0]);
+  await as(V2, () => q(`select accept_invite($1)`, [im.token]));
+  for (const [u, n] of [[V1, 'Vera'], [V2, 'Vitor']]) await as(u, () => q(`update members set display_name=$3, consent_at=now() where workspace_id=$1 and user_id=$2`, [w5.id, u, n]));
+  l5 = await as(V1, async () => (await q(`insert into catalog_items(workspace_id,kind,name) values ($1,'linha','L') returning id`, [w5.id])).rows[0].id);
+  const c = (await q(`select id, name, kind, parent_id from catalog_items where workspace_id=$1`, [w5.id])).rows;
+  d5 = c.find(x => x.kind === 'area' && x.name === 'Design'); d5.tipo = c.find(x => x.kind === 'tipo' && x.parent_id === d5.id).id;
+  for (const u of [V1, V2]) await as(u, () => q(`select set_state($1,'trabalhando',current_date)`, [w5.id]));
+});
+await t('0.4 · tempo da tarefa vai para o registro do dia', async () => {
+  t5 = await as(V2, async () => (await q(`select * from create_task($1,'Peça',null,$2,$3,$4,null,${WD},null,60)`, [w5.id, l5, d5.id, d5.tipo])).rows[0]);
+  await as(V2, () => q(`select start_task($1)`, [t5.id]));
+  await q(`update tasks set running_since = now() - interval '40 minutes' where id=$1`, [t5.id]);
+  await as(V2, () => q(`select set_state($1,'cafe',current_date)`, [w5.id]));
+  const s = (await q(`select sum(seconds)::int s from task_time_log where task_id=$1 and user_id=$2`, [t5.id, V2])).rows[0].s;
+  if (!(s >= 2390)) throw new Error('segundos ' + s);
+  await as(V2, () => q(`select set_state($1,'trabalhando',current_date)`, [w5.id]));
+  await as(V2, () => q(`select complete_task($1)`, [t5.id]));
+});
+await t('0.4 · pontos do mês (glória)', async () => {
+  const r = await as(V1, async () => (await q(`select * from glory_scores($1, current_date)`, [w5.id])).rows);
+  const v = r.find(x => x.user_id === V2); if (!v || v.entregas !== 1 || v.tarefa_min < 39) throw new Error(JSON.stringify(r));
+  await as(X, () => expectErr(() => q(`select * from glory_scores($1, current_date)`, [w5.id]), /não faz parte/));
+});
+await t('0.4 · resumo do dia', async () => {
+  const r = await as(V1, async () => (await q(`select * from day_summary($1, $2)`, [w5.id, new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })])).rows);
+  const v = r.find(x => x.user_id === V2); if (!v || v.tarefa_min < 39 || v.entregas !== 1) throw new Error(JSON.stringify(v));
+});
+await t('0.4 · folga no sábado leva a entrega para segunda', async () => {
+  const ts = await as(V1, async () => (await q(`select * from create_task($1,'Sábado',null,$2,$3,$4,$5,$6,null,60)`, [w5.id, l5, d5.id, d5.tipo, V2, SAT])).rows[0]);
+  await as(V2, () => expectErr(() => q(`select set_saturday($1,$2,$3,false)`, [w5.id, V1, SAT]), /administrador/));
+  const n = await as(V2, async () => (await q(`select set_saturday($1,$2,$3,false) n`, [w5.id, V2, SAT])).rows[0].n);
+  const d = (await q(`select to_char(due_date,'YYYY-MM-DD') d from tasks where id=$1`, [ts.id])).rows[0].d;
+  const mon = new Date(SAT + 'T12:00:00Z'); mon.setUTCDate(mon.getUTCDate() + 2);
+  if (n !== 1 || d !== mon.toISOString().slice(0, 10)) throw new Error(n + ' ' + d);
+});
+await t('0.4 · sábado bloqueado quando o SABADÃO está desligado', async () => {
+  await as(V1, () => q(`update workspaces set settings = jsonb_set(settings, '{recursos,sabadao}', 'false') where id=$1`, [w5.id]));
+  await as(V1, () => expectErr(() => q(`select create_task($1,'Sáb',null,$2,$3,$4,null,$5,null,60)`, [w5.id, l5, d5.id, d5.tipo, SAT]), /sábados/));
+});
+await t('0.4 · Instagram só o admin atualiza', async () => {
+  await as(V2, () => expectErr(() => q(`select set_instagram($1,'@x',10)`, [w5.id]), /administrador/));
+  await as(V1, () => q(`select set_instagram($1,'@aromasil',1234)`, [w5.id]));
+  const f = await as(V2, async () => (await q(`select followers from instagram_stats where workspace_id=$1`, [w5.id])).rows[0].followers);
+  if (f !== 1234) throw new Error(f);
+});
 console.log(`\n${ok} ok, ${fail} falhas`); process.exit(fail ? 1 : 0);

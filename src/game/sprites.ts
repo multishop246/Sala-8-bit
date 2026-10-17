@@ -1,6 +1,7 @@
 // Sprites em pixel art dos personagens (12 px de largura).
 // Cada grade é um mapa linha → texto de 12 caracteres; "." é transparente.
 import type { Avatar } from '../lib/types';
+import { HATC, HATS, NOEL, THEME, themeVariant } from './themes';
 
 type Grid = Record<string, string>;
 type ColorMap = Record<string, string>;
@@ -90,25 +91,53 @@ function drawGrid(c: CanvasRenderingContext2D, ox: number, oy: number, g: Grid, 
 
 export interface DrawOpts { stand?: boolean; blink?: boolean; music?: boolean; crown?: boolean }
 
-/** Desenha o personagem com o canto superior esquerdo em (ox, oy). Ocupa 12×20 (sentado) ou 12×26 (em pé). */
+const hsh = (n: number) => { n = Math.imul(n ^ 61, 2654435761); return (n >>> 0) / 4294967296; };
+
+/** Desenha o personagem com o canto superior esquerdo em (ox, oy). Ocupa 12×20 (sentado) ou 12×26 (em pé).
+ *  Se a.theme estiver definido, veste a roupa temática (variação a.vi da equipe). */
 export function drawPerson(c: CanvasRenderingContext2D, ox: number, oy: number, a: Avatar, o: DrawOpts = {}) {
+  const th = a.theme ? THEME[a.theme] : undefined;
+  const v = th ? themeVariant(th, a.vi ?? 0) : undefined;
   const out = OUTFITS[a.out] || OUTFITS.camiseta;
-  const base = out.base || a.oc;
-  const sk = a.skin;
+  let base = out.base || a.oc, tie = a.oc;
+  if (v) { base = v.b; tie = v.t || shade(v.b, -0.35); }
+  const sk = (v && v.skin) || a.skin;
   const m: ColorMap = {
     S: sk, N: shade(sk, -0.13), m: shade(sk, -0.3), E: o.blink ? shade(sk, -0.25) : '#1c1d26',
-    O: base, A: shade(base, -0.16), K: shade(base, -0.32), W: '#eef1f5', T: a.oc, P: '#2c3349', B: '#171a23',
+    O: base, A: shade(base, -0.16), K: shade(base, -0.32), W: '#eef1f5', T: tie, P: (v && v.legs) || '#2c3349', B: '#171a23',
     H: a.hair, D: shade(a.hair, -0.3)
   };
   if (o.stand) drawGrid(c, ox, oy, LEGS, m);
-  drawGrid(c, ox, oy, TORSO, m);
-  drawGrid(c, ox, oy, out.ov, m);
+  const s2 = (v && v.s2) || '#f4f6fa';
+  let sd = 7; for (const ch of a.out + a.oc + a.hs) sd = (sd * 31 + ch.charCodeAt(0)) | 0;
+  const pf = v && v.pat ? (ch: string, r: number, i: number, col: string | undefined) => {
+    if (ch !== 'O' && ch !== 'A') return col;
+    switch (v.pat) {
+      case 'stripes': return r % 2 ? s2 : col;
+      case 'dots': return (r + i) % 4 === 0 ? s2 : col;
+      case 'plaid': return (r + i) % 2 ? v.b : s2;
+      case 'check': return (r + i) % 2 ? '#1c1d26' : '#f4f6fa';
+      case 'zig': return (r === 15 && i % 2) || (r === 16 && i % 2 === 0) ? s2 : col;
+      case 'confetti': return hsh(r * 12 + i + sd) < 0.22 ? ['#f2c94c', '#3fc1c9', '#ffffff'][Math.floor(hsh(r + i * 7) * 3)] : col;
+      case 'ribs': return r >= 14 && r <= 18 && r % 2 === 0 && i > 2 && i < 9 ? s2 : col;
+      default: return col;
+    }
+  } : undefined;
+  drawGrid(c, ox, oy, TORSO, m, pf);
+  if (!v || v.keepOv) drawGrid(c, ox, oy, out.ov, m);
+  if (v && v.extra) drawGrid(c, ox, oy, v.extra as Grid, { ...m, ...(v.xc as ColorMap || {}) });
   drawGrid(c, ox, oy, FACE, m);
   if (a.sex === 'f') drawGrid(c, ox, oy, { 5: '....E..E....', 8: '.....ll.....' }, { E: '#1c1d26', l: '#c9606a' });
   if (a.sex === 'm' && BEARDS[a.beard]) drawGrid(c, ox, oy, BEARDS[a.beard], { H: a.hair, X: lerpC(a.hair, sk, 0.4), m: lerpC(sk, '#a8464a', 0.55) });
-  drawGrid(c, ox, oy, HAIR[a.hs] || {}, m, (ch, r, i, col) => (a.hs === 'cacheado' && ch === 'H' && (r + i) % 3 === 0 ? m.D : col));
+  if (v && v.nose) drawGrid(c, ox, oy, { 7: '.....nn.....' }, { n: v.nose });
+  if (!(v && v.noHair)) drawGrid(c, ox, oy, HAIR[a.hs] || {}, m, (ch, r, i, col) => (a.hs === 'cacheado' && ch === 'H' && (r + i) % 3 === 0 ? m.D : col));
+  if (th && th.ribbon) drawGrid(c, ox, oy, { 14: '...R........', 15: '..R.R.......' }, { R: th.ribbon });
+  if (v && v.mask) drawGrid(c, ox, oy, { 5: '...MMMMMM...', 6: '..MM.MM.MM..' }, { M: v.mask });
+  if (v && v.visor) drawGrid(c, ox, oy, { 6: '..VVVVVVVV..' }, { V: v.visor });
   const acc = o.music ? 'fone' : a.acc;
   drawGrid(c, ox, oy, ACC[acc] || {}, { G: '#22252f', w: '#e8c547', V: o.music ? '#f2c94c' : '#8b7bff' });
+  if (v && v.beard) drawGrid(c, ox, oy, NOEL.beard, { W: '#f4f6fa' });
+  if (v && v.hat) drawGrid(c, ox, oy, HATS[v.hat], { ...HATC, ...(v.hc as ColorMap || {}) });
   if (o.crown) drawGrid(c, ox, oy, CROWN, { Y: '#f2c94c', D: '#b8902f', P: '#fff3c4', R: '#e0384f', B: '#3d7bd9' });
 }
 

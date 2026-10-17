@@ -3,7 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as live from '../lib/live';
 import { useToast } from '../components/Toast';
 import { useWs } from '../lib/workspace';
-import type { AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status } from '../lib/types';
+import { assignTitles, monthStart, titleThemeOf, type GloryCat } from '../glory/glory';
+import { THEME, themesNow } from '../game/themes';
+import type { Avatar, InstagramStats, SaturdayShift, AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status } from '../lib/types';
 
 const EMPTY_BOARD: BoardSnapshot = { tasks: [], events: [], contests: [], votes: [], transfers: [], help: [], durations: [], messages: [] };
 
@@ -36,11 +38,19 @@ interface LiveCtx {
   gestorName: string | null;
   inLunchWindow: boolean;
   board: BoardSnapshot;
+  saturdays: SaturdayShift[];
+  instagram: InstagramStats | null;
+  /** título do mês passado de cada pessoa (Mural da Glória) */
+  titles: Record<string, GloryCat>;
+  /** visual da pessoa com a roupa temática que vale agora */
+  look: (m: Member) => Avatar;
   /** mensagens não lidas por remetente */
   unread: Record<string, number>;
   nameOf: (id: string | null) => string;
   act: {
     createTask: (t: NewTask) => Promise<boolean>;
+    setSaturday: (userId: string, day: string, works: boolean) => Promise<boolean>;
+    setInstagram: (handle: string, followers: number) => Promise<boolean>;
     startTask: (id: string) => Promise<boolean>;
     setActiveTask: (id: string) => Promise<boolean>;
     completeTask: (id: string) => Promise<boolean>;
@@ -117,6 +127,21 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     firstLoad.current = false;
   }, [snap, me.user_id, members, toast]);
 
+  // títulos do mês passado (recalcula a cada 10 minutos)
+  const [titles, setTitles] = useState<Record<string, GloryCat>>({});
+  useEffect(() => {
+    if (!ws.settings.recursos?.mural_gloria) { setTitles({}); return; }
+    const load = () => live.gloryScores(ws.id, monthStart(-1)).then(sc => {
+      const { win } = assignTitles(sc);
+      const t: Record<string, GloryCat> = {};
+      (Object.keys(win) as GloryCat[]).forEach(c => { const u = win[c]; if (u) t[u] = c; });
+      setTitles(t);
+    }).catch(() => {});
+    load();
+    const i = window.setInterval(load, 600000);
+    return () => window.clearInterval(i);
+  }, [ws.id, ws.settings.recursos?.mural_gloria]);
+
   const value = useMemo<LiveCtx>(() => {
     const budget = (ws.settings.cafe_min ?? 15) * 60;
     const ready = members.filter(m => m.display_name && m.consent_at);
@@ -140,11 +165,21 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const al = ws.settings.almoco || { de: '11:00', ate: '13:00' };
     const wrap = (fn: () => Promise<unknown>, ok?: string) => async () => { try { await fn(); reload(); if (ok) toast(ok); return true; } catch (e) { toast((e as Error).message); return false; } };
     const board = snap?.board || EMPTY_BOARD;
+    const order = [...ready].sort((a, b) => (a.desk || 99) - (b.desk || 99) || a.joined_at.localeCompare(b.joined_at)).map(m => m.user_id);
+    const avail = new Set(themesNow(new Date(now)).map(t => t.id));
+    const look = (m: Member): Avatar => {
+      const a = m.avatar as Avatar, t = a.theme;
+      let theme: string | null = null;
+      if (t && t.startsWith('ttl_')) { const c = titles[m.user_id]; if (c && titleThemeOf(c) === t && ws.settings.recursos?.mural_gloria) theme = t; }
+      else if (t && THEME[t] && avail.has(t) && ws.settings.recursos?.datas_comemorativas) theme = t;
+      return { ...a, theme, vi: Math.max(0, order.indexOf(m.user_id)) };
+    };
     const unread: Record<string, number> = {};
     board.messages.forEach(m => { if (m.to_user === me.user_id && !m.read_at) unread[m.from_user] = (unread[m.from_user] || 0) + 1; });
     const nameOf = (id: string | null) => (id ? members.find(m => m.user_id === id)?.display_name || 'ex-membro' : '—');
     return {
-      ready: !!snap, now, views, board, unread, nameOf,
+      ready: !!snap, now, views, board, unread, nameOf, titles, look,
+      saturdays: snap?.saturdays || [], instagram: snap?.instagram || null,
       view: (id: string) => views.find(v => v.member.user_id === id),
       meetings: meetingsOpen,
       callsToMe: (snap?.calls || []).filter(c => c.to_user === me.user_id),
@@ -153,6 +188,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       inLunchWindow: nowMin >= toMin(al.de) && nowMin < toMin(al.ate),
       act: {
         createTask: t => wrap(() => live.createTask(ws.id, t), 'Tarefa criada')(),
+        setSaturday: (u, d, w) => wrap(() => live.setSaturday(ws.id, u, d, w), w ? 'Sábado de trabalho marcado' : 'Folga marcada')(),
+        setInstagram: (h, f) => wrap(() => live.setInstagram(ws.id, h, f), 'Instagram atualizado')(),
         startTask: id => wrap(() => live.startTask(id), 'Tarefa iniciada')(),
         setActiveTask: id => wrap(() => live.setActiveTask(id), 'Executando agora')(),
         completeTask: id => wrap(() => live.completeTask(id))(),
@@ -174,7 +211,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         ackAttention: from => wrap(() => live.ackAttention(ws.id, from))()
       }
     };
-  }, [snap, online, now, members, ws, me.user_id, device, reload, toast]);
+  }, [snap, online, now, members, ws, me.user_id, device, reload, toast, titles]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

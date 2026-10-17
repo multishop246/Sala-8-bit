@@ -6,5 +6,6 @@ const api: typeof real = isDemo ? demo : real;
 export const {
   loadLive, subscribeLive, setState, startMeeting, joinMeeting, leaveMeeting, callAttention, ackAttention,
   createTask, startTask, setActiveTask, completeTask, returnTask, deleteTask, contestTask, voteContest,
-  requestTransfer, answerTransfer, requestHelp, answerHelp, sendMessage, markRead
+  requestTransfer, answerTransfer, requestHelp, answerHelp, sendMessage, markRead,
+  setSaturday, setInstagram, gloryScores, daySummary, myTimeLog
 } = api;

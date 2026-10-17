@@ -19,7 +19,7 @@ export function Chat({ withUser, setWithUser, presetTask, onOpenTask }: { withUs
         {sorted.map(v => {
           const id = v.member.user_id, lm = last(id), n = L.unread[id] || 0, call = L.callsToMe.some(c => c.from_user === id);
           return <button key={id} role="listitem" className={'cperson' + (withUser === id ? ' on' : '')} onClick={() => setWithUser(id)}>
-            <Avatar avatar={v.member.avatar} crown={v.member.kind === 'gestor'} size={26} />
+            <Avatar avatar={L.look(v.member)} crown={v.member.kind === 'gestor'} size={26} />
             <span className="who"><b>{v.member.display_name}</b><span>{lm ? (lm.from_user === me.user_id ? 'Você: ' : '') + lm.text : 'Sem mensagens'}</span></span>
             {call ? <span className="badge att-b">!</span> : n ? <span className="badge">{n}</span> : null}
           </button>;

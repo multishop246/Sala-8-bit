@@ -87,9 +87,41 @@ export async function seed() {
   await asAdmin(`update tasks set running_since = now() - interval '50 minutes' where id = any($1::uuid[]) and running_since is not null`, [[t2, t3]]);
   await rpc(ids[1], 'contest_task', { p_task: t5, p_text: 'Fazer em vídeo curto em vez de carrossel: o último vídeo teve o dobro de alcance.' });
 
+  // Diego sai para a captação do vídeo (anda pela sala com a câmera)
+  await rpc(ids[3], 'start_task', { p_task: t4 });
   // pausas em andamento
-  await rpc(ids[3], 'set_state', { p_ws: ws.id, p_state: 'cafe', p_day: day(0) });
-  await asAdmin(`update pauses set started_at = now() - interval '6 minutes' where user_id = $1 and ended_at is null`, [ids[3]]);
-  await asAdmin(`update statuses set since = now() - interval '6 minutes' where user_id = $1`, [ids[3]]);
+  await rpc(ids[4], 'set_state', { p_ws: ws.id, p_state: 'cafe', p_day: day(0) });
+  await asAdmin(`update pauses set started_at = now() - interval '6 minutes' where user_id = $1 and ended_at is null`, [ids[4]]);
+  await asAdmin(`update statuses set since = now() - interval '6 minutes' where user_id = $1`, [ids[4]]);
+
+  // Instagram perto de virar a centena (cai confete logo)
+  await asAdmin(`update workspaces set settings = jsonb_set(settings, '{recursos,instagram}', 'true') where id = $1`, [ws.id]);
+  await rpc(ids[0], 'set_instagram', { p_ws: ws.id, p_handle: '@agenciademo', p_followers: 9994 });
+
+  // SABADÃO do próximo sábado
+  const sat = (() => { const d = new Date(); while (d.getDay() !== 6) d.setDate(d.getDate() + 1); return d.toLocaleDateString('sv-SE'); })();
+  for (const [i, w] of [[0, true], [1, false], [2, true], [3, false], [5, true]] as const)
+    await rpc(ids[i], 'set_saturday', { p_ws: ws.id, p_user: ids[i], p_day: sat, p_works: w });
+
+  // histórico do mês passado e deste mês para o Mural da Glória
+  const histTask = (await asAdmin<{ id: string }>(`insert into tasks(workspace_id, title, line_id, area_id, col, creator, due_date, done_at, created_at)
+     values ($1, 'Entregas dos meses anteriores', $2, $3, 'feito', $4, current_date - 60, now() - interval '60 days', now() - interval '61 days') returning id`, [ws.id, L('Aromasil'), area('Outra'), ids[5]]))[0].id;
+  const tasksAll = [histTask, histTask, histTask, histTask, histTask];
+  const prev = new Date(); prev.setDate(1); prev.setMonth(prev.getMonth() - 1);
+  const pm = (d: number) => { const x = new Date(prev); x.setDate(d); return x.toLocaleDateString('sv-SE'); };
+  const cm = (d: number) => { const x = new Date(); x.setDate(Math.min(d, x.getDate())); return x.toLocaleDateString('sv-SE'); };
+  //            pessoa: [horas em tarefas, entregas, ajudas] no mês passado e neste mês
+  const hist2: [number, [number, number, number], [number, number, number]][] = [
+    [0, [70, 14, 9], [22, 5, 3]], [1, [74, 19, 6], [25, 7, 2]], [2, [86, 12, 5], [21, 4, 1]],
+    [3, [66, 9, 4], [18, 3, 2]], [4, [69, 11, 15], [19, 4, 5]], [5, [58, 8, 11], [16, 2, 4]]
+  ];
+  for (const [who, last, cur] of hist2) {
+    for (const [data, dayOf] of [[last, pm], [cur, cm]] as const) {
+      const [h, e, a] = data;
+      await asAdmin(`insert into task_time_log(workspace_id, user_id, task_id, day, seconds) values ($1,$2,$3,$4,$5) on conflict do nothing`, [ws.id, ids[who], tasksAll[who % 5], dayOf(3), h * 3600]);
+      for (let k = 0; k < e; k++) await asAdmin(`insert into task_events(task_id, workspace_id, actor, kind, text, created_at) values ($1,$2,$3,'concluiu','Concluiu a tarefa', $4::date + interval '15 hours')`, [tasksAll[k % 5], ws.id, ids[who], dayOf(2 + (k % 10))]);
+      for (let k = 0; k < a; k++) await asAdmin(`insert into task_help(task_id, workspace_id, from_user, to_user, note, status, created_at, answered_at) values ($1,$2,$3,$4,'Revisão','aceita', $5::date + interval '10 hours', $5::date + interval '11 hours')`, [tasksAll[k % 5], ws.id, ids[(who + 1) % 6], ids[who], dayOf(2 + (k % 10))]);
+    }
+  }
   await asAdmin(`update statuses set since = now() - (interval '20 minutes' * (1 + random()*4)) where workspace_id = $1 and state = 'trabalhando'`, [ws.id]);
 }

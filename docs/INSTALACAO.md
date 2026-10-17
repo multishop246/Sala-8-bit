@@ -67,13 +67,28 @@ Pronto: o login por **link no e-mail** já funciona.
 
 ---
 
+## Instagram automático (opcional)
+
+Sem configurar nada, o administrador atualiza o número de seguidores na mão (clique no quadro do Instagram na sala). Para atualizar sozinho:
+
+1. A conta do Instagram precisa ser **profissional** e estar ligada a uma **página do Facebook**.
+2. Crie um app em [developers.facebook.com](https://developers.facebook.com), adicione o produto **Instagram Graph API** e gere um **token de acesso de longa duração** com a permissão `instagram_basic`. Anote também o **ID da conta do Instagram** na API.
+3. Instale o [Supabase CLI](https://supabase.com/docs/guides/cli) e, na pasta do projeto, rode:
+   ```bash
+   supabase functions deploy instagram-sync --project-ref SEU-PROJETO
+   supabase secrets set IG_USER_ID=... IG_ACCESS_TOKEN=... WORKSPACE_SLUG=seu-escritorio --project-ref SEU-PROJETO
+   ```
+4. Agende a função para rodar de hora em hora em **Integrations → Cron** no painel do Supabase (tipo "Supabase Edge Function", função `instagram-sync`).
+
+O token de longa duração vence de tempos em tempos; quando vencer, gere outro e rode o `supabase secrets set` de novo.
+
 ## Perguntas comuns
 
 **É grátis mesmo?** Sim, nos planos gratuitos do Supabase e da Vercel, que sobram para uma equipe de marketing. O Supabase gratuito **pausa projetos sem nenhum uso por uma semana**; com a equipe entrando todo dia isso não acontece. Se pausar, é só reativar no painel.
 
 **Posso usar meu próprio domínio?** Sim, em Vercel → Settings → Domains. Depois atualize a Site URL e as Redirect URLs do Supabase.
 
-**Atualizando para uma versão nova:** rode no SQL Editor só os arquivos novos da pasta `supabase/migrations`, em ordem (da 0.1 para a 0.3: `0003_sala_ao_vivo.sql` e depois `0004_tarefas_chat.sql`).
+**Atualizando para uma versão nova:** rode no SQL Editor só os arquivos novos da pasta `supabase/migrations`, em ordem (da 0.1 para a 0.4: `0003_sala_ao_vivo.sql`, `0004_tarefas_chat.sql` e `0005_mural_relatorio.sql`).
 
 **Como atualizo para uma versão nova?** No seu fork, clique em **Sync fork**. A Vercel publica sozinha. Se a versão trouxer arquivos novos em `supabase/migrations`, rode só os novos no SQL Editor, em ordem.
 

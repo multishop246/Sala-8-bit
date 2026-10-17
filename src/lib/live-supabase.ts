@@ -1,7 +1,7 @@
 // Sala ao vivo com o Supabase: leitura, mudanças em tempo real e presença (quem está com o site aberto).
 import { supabase } from './supabase';
 import type {
-  AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask,
+  AttentionCall, BoardSnapshot, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask,
   OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote
 } from './types';
 
@@ -30,21 +30,23 @@ async function loadBoard(wsId: string): Promise<BoardSnapshot> {
 }
 
 export async function loadLive(wsId: string, day: string, userId: string): Promise<LiveSnapshot> {
-  const [statuses, pauses, meetings, calls, board] = await Promise.all([
+  const [statuses, pauses, meetings, calls, board, saturdays, instagram] = await Promise.all([
     supabase.from('statuses').select('*').eq('workspace_id', wsId),
     supabase.from('pauses').select('*').eq('workspace_id', wsId).eq('day', day),
     supabase.from('meetings').select('*').eq('workspace_id', wsId).is('ended_at', null),
     supabase.from('attention_calls').select('*').eq('workspace_id', wsId).is('seen_at', null).or(`from_user.eq.${userId},to_user.eq.${userId}`),
-    loadBoard(wsId)
+    loadBoard(wsId),
+    supabase.from('saturday_shifts').select('*').eq('workspace_id', wsId).gte('day', day),
+    supabase.from('instagram_stats').select('*').eq('workspace_id', wsId).maybeSingle()
   ]);
   const ms = check(meetings) as Meeting[];
   const mm = ms.length
     ? check(await supabase.from('meeting_members').select('*').in('meeting_id', ms.map(m => m.id)).is('left_at', null)) as MeetingMember[]
     : [];
-  return { statuses: check(statuses) as Status[], pauses: check(pauses) as Pause[], meetings: ms, meetingMembers: mm, calls: check(calls) as AttentionCall[], board };
+  return { statuses: check(statuses) as Status[], pauses: check(pauses) as Pause[], meetings: ms, meetingMembers: mm, calls: check(calls) as AttentionCall[], board, saturdays: check(saturdays) as SaturdayShift[], instagram: check(instagram) as InstagramStats | null };
 }
 
-const TABLES = ['statuses', 'pauses', 'meetings', 'meeting_members', 'attention_calls', 'tasks', 'task_contests', 'contest_votes', 'task_transfers', 'task_help', 'messages'];
+const TABLES = ['statuses', 'pauses', 'meetings', 'meeting_members', 'attention_calls', 'tasks', 'task_contests', 'contest_votes', 'task_transfers', 'task_help', 'messages', 'saturday_shifts', 'instagram_stats'];
 export function subscribeLive(wsId: string, me: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void) {
   const filter = `workspace_id=eq.${wsId}`;
   const ch = supabase.channel('sala:' + wsId, { config: { presence: { key: me.userId } } });
@@ -86,3 +88,11 @@ export const requestHelp = (id: string, tos: string[], note: string) => rpc('req
 export const answerHelp = (id: string, ok: boolean, just: string | null) => rpc('answer_help', { p_help: id, p_ok: ok, p_just: just });
 export const sendMessage = (wsId: string, to: string, task: string, text: string) => rpc('send_message', { p_ws: wsId, p_to: to, p_task: task, p_text: text });
 export const markRead = (wsId: string, from: string) => rpc('mark_read', { p_ws: wsId, p_from: from });
+
+// mural, painel, SABADÃO, Instagram
+export const setSaturday = (wsId: string, userId: string, day: string, works: boolean) => rpc('set_saturday', { p_ws: wsId, p_user: userId, p_day: day, p_works: works });
+export const setInstagram = (wsId: string, handle: string, followers: number) => rpc('set_instagram', { p_ws: wsId, p_handle: handle, p_followers: followers });
+export const gloryScores = (wsId: string, month: string) => rpc<GloryScore[]>('glory_scores', { p_ws: wsId, p_month: month });
+export const daySummary = (wsId: string, day: string) => rpc<DaySummary[]>('day_summary', { p_ws: wsId, p_day: day });
+export const myTimeLog = async (wsId: string, userId: string, day: string) =>
+  check(await supabase.from('task_time_log').select('task_id,seconds').eq('workspace_id', wsId).eq('user_id', userId).eq('day', day)) as TimeLogRow[];

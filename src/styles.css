@@ -281,3 +281,37 @@ body.grabbing, body.grabbing * { cursor: grabbing !important }
 .compose { display: grid; gap: 6px }
 .compose .row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px }
 .compose textarea { min-height: 42px; height: 42px }
+
+/* 0.4: mural, SABADÃO, Instagram, títulos */
+.room canvas.fx { position: absolute; inset: 0; pointer-events: none }
+.igc { position: absolute; transform: translate(-50%, 0); font-family: var(--mono); font-size: .62em; font-weight: 700; color: #fff; background: #e1306ccc; border-radius: 2px; padding: 0 .35em; line-height: 1.4; pointer-events: none }
+.sabt { position: absolute; transform: translate(-50%, 0); font-family: var(--display); font-weight: 700; color: #fff; font-size: .5em; letter-spacing: .06em; line-height: 1.4; pointer-events: none }
+.sabn { position: absolute; display: grid; grid-template-columns: 1fr 1fr; gap: 0 .3em; font-size: .42em; line-height: 1.3; font-weight: 700; pointer-events: none; overflow: hidden; color: #6b7390 }
+.sabn i { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.sabn i.y { color: #2f8f4f } .sabn i.n { color: #c62f45; text-decoration: line-through }
+.tvw { position: absolute; transform: translate(-50%, -50%); font-family: var(--body); font-weight: 800; text-transform: uppercase; font-size: .46em; color: #2a1d05; letter-spacing: .02em; pointer-events: none; white-space: nowrap; text-align: center }
+.gplate { position: absolute; transform: translate(-50%, -100%); background: linear-gradient(#f6d873, #c49a35); color: #3a2806; border: 1px solid #7a5c16; border-radius: 1px; font-size: .56em; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 0 .4em; line-height: 1.45; white-space: nowrap; cursor: pointer; box-shadow: 0 1px 0 #0005; font-family: var(--body) }
+.tag .tsub { display: block; font-size: .72em; font-weight: 600; color: var(--gold); line-height: 1.15; text-align: center }
+.gcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px }
+.gcard { background: var(--deep); border: 1px solid #3a3214; border-radius: 8px; padding: 10px; display: grid; gap: 8px; align-content: start }
+.gh { display: flex; gap: 10px; align-items: center }
+.gh canvas { background: repeating-conic-gradient(#1a2238 0 25%, #151c30 0 50%) 0 0 / 12px 12px; border-radius: 6px; flex: none }
+.gh b { display: block; font-size: 15px; color: var(--gold) }
+.gh .small { display: block }
+.gempty { width: 34px; height: 74px; border-radius: 6px; background: #151c30; flex: none }
+.grank { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12.5px }
+.grank li { display: flex; justify-content: space-between; gap: 8px; color: var(--muted) }
+.grank li.first { color: var(--fg); font-weight: 600 }
+.grank li.win span::after { content: " ★"; color: var(--gold) }
+.grank em { font-style: normal; font-family: var(--mono) }
+.gpeople { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px }
+.gperson { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: center; background: var(--deep); border-radius: 8px; padding: 8px }
+.gmain { color: var(--gold); font-weight: 600; font-size: 12px; display: block }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px }
+.kpis div { background: var(--deep); border-radius: 8px; padding: 10px 12px }
+.kpis span { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em }
+.kpis b { font-family: var(--mono); font-size: 20px; font-weight: 500 }
+.meter { display: flex; align-items: center; gap: 8px }
+.meter span { flex: 1; height: 6px; background: #232b42; border-radius: 3px; overflow: hidden; min-width: 50px }
+.meter span i { display: block; height: 100% }
+.tag .tsub.cap { color: #ff8a9b }

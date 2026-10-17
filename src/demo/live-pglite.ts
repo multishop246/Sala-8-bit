@@ -1,5 +1,5 @@
 // Mesmas funções de lib/live-supabase.ts, no Postgres da demonstração.
-import type { AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask, OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote } from '../lib/types';
+import type { DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask, OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote } from '../lib/types';
 import { DEMO_USER, asUser, rpc as rawRpc } from './pg';
 import { botTick } from './bots';
 
@@ -24,7 +24,9 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
     durations: await Q<Duration>(`select user_id, area_id, type_id, etapa, minutes, done_at from task_durations where workspace_id = $1`, [wsId]),
     messages: await Q<Message>(`select * from messages where workspace_id = $1 order by created_at`, [wsId])
   };
-  return { statuses, pauses, meetings, meetingMembers, calls, board };
+  const saturdays = await Q<SaturdayShift>(`select * from saturday_shifts where workspace_id = $1 and day >= $2`, [wsId, day]);
+  const instagram = (await Q<InstagramStats>(`select * from instagram_stats where workspace_id = $1`, [wsId]))[0] || null;
+  return { statuses, pauses, meetings, meetingMembers, calls, board, saturdays, instagram };
 }
 
 export function subscribeLive(wsId: string, my: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void) {
@@ -67,3 +69,9 @@ export const requestHelp = (id: string, tos: string[], note: string) => rpc('req
 export const answerHelp = (id: string, ok: boolean, just: string | null) => rpc('answer_help', { p_help: id, p_ok: ok, p_just: just });
 export const sendMessage = (wsId: string, to: string, task: string, text: string) => rpc('send_message', { p_ws: wsId, p_to: to, p_task: task, p_text: text });
 export const markRead = (wsId: string, from: string) => rpc('mark_read', { p_ws: wsId, p_from: from });
+
+export const setSaturday = (wsId: string, userId: string, day: string, works: boolean) => rpc('set_saturday', { p_ws: wsId, p_user: userId, p_day: day, p_works: works });
+export const setInstagram = (wsId: string, handle: string, followers: number) => rpc('set_instagram', { p_ws: wsId, p_handle: handle, p_followers: followers });
+export const gloryScores = (wsId: string, month: string) => asUser<GloryScore>(me, `select * from glory_scores($1, $2)`, [wsId, month]);
+export const daySummary = (wsId: string, day: string) => asUser<DaySummary>(me, `select * from day_summary($1, $2)`, [wsId, day]);
+export const myTimeLog = (wsId: string, userId: string, day: string) => asUser<TimeLogRow>(me, `select task_id, seconds from task_time_log where workspace_id = $1 and user_id = $2 and day = $3`, [wsId, userId, day]);

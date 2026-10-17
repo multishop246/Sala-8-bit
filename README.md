@@ -6,7 +6,7 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 
 > **Experimente sem instalar:** abra o site sem configurar nada e clique em **Experimentar a demonstração**. Tudo roda no navegador, com uma equipe de exemplo.
 
-## O que já funciona (versão 0.3)
+## O que já funciona (versão 0.4)
 
 - Login com Google ou link por e-mail, sem senha
 - Criação do escritório da empresa, com endereço próprio (`/w/sua-equipe`)
@@ -30,12 +30,19 @@ Escritório virtual em pixel art para equipes de marketing. Cada pessoa vira um 
 - Arrastar os cards entre colunas, suas tarefas primeiro, filtros por linha e colaborador, contorno brilhante no que é seu
 - **Chat por demanda:** toda mensagem fica ligada a uma tarefa; Enter envia; botão Responder; mensagens fora do assunto ficam sinalizadas em vermelho (sem bloquear); responder apaga a placa ATENÇÃO
 - Clicar num colega mostra o que ele está executando agora e a conversa com ele
+- **Mural da Glória:** ranking do mês (Mão Amiga, Produtividade, Entregas e, com o app de computador, Mestre da IA); o 1º de cada categoria ganha título no mês seguinte, com plaquinha dourada na mesa, subtítulo no nome e roupa exclusiva (um título por pessoa); os vencedores aparecem no mural da parede
+- **Painel do dia:** tempo em tarefas, reuniões, café (com o que passou do limite), almoço, entregas, ajudas e a carga de cada um
+- **Relatório do dia em PDF** ao encerrar o expediente, salvo na pasta escolhida (Chrome/Edge) ou baixado
+- **SABADÃO:** quadro na parede com quem trabalha no sábado; folga leva as entregas daquele sábado para segunda
+- **Roupas temáticas** do mês (Outubro Rosa, Halloween, Natal, festa junina, Carnaval, cores dos meses), escolhidas em "Sua mesa", com uma variação diferente para cada pessoa
+- **Quadro do Instagram** com um rostinho por seguidor e confete a cada 100 (atualização manual ou automática pela API)
+- **Captação:** quem está na etapa de captação de um vídeo anda pela sala com a câmera, soltando flashes
 - Funciona no computador e no celular, e pode ser instalado como app (PWA)
 - Segurança no banco: cada empresa só enxerga os próprios dados (Row Level Security, testado em `scripts/test-db.mjs`)
 
 ## Próximas versões
 
-Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Em resumo: Mural da Glória e relatórios → app de computador (Windows e macOS) que mede o app em foco.
+Veja [docs/ROTEIRO.md](docs/ROTEIRO.md). Falta a versão 0.5: o app de computador (Windows e macOS) que mede o app em foco.
 
 O protótipo visual completo, com todas as ideias, está em [`prototype/prototipo-v1.html`](prototype/prototipo-v1.html) (abra no navegador).
 

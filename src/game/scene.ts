@@ -56,38 +56,65 @@ function drawWindow(r: R, m: number, frame: number) {
 
 const DIG: Record<string, string[]> = { 0: ['111', '101', '101', '101', '111'], 1: ['010', '110', '010', '010', '111'], 2: ['111', '001', '111', '100', '111'], 3: ['111', '001', '111', '001', '111'], 4: ['101', '101', '111', '001', '001'], 5: ['111', '100', '111', '001', '111'], 6: ['111', '100', '111', '101', '111'], 7: ['111', '001', '001', '001', '001'], 8: ['111', '101', '111', '101', '111'], 9: ['111', '101', '111', '001', '111'] };
 function drawClock(r: R, m: number, frame: number) {
-  r(282, 7, 25, 13, '#3a3f4c'); r(283, 8, 23, 11, '#11131a');
-  const s = String(Math.floor(m / 60) % 24).padStart(2, '0') + String(m % 60).padStart(2, '0'), xs = [285, 289, 296, 300];
-  [...s].forEach((ch, i) => DIG[ch].forEach((row, ry) => [...row].forEach((b, cx) => { if (b === '1') r(xs[i] + cx, 11 + ry, 1, 1, '#ff6b5a'); })));
-  if (frame % 8 < 5) { r(293, 12, 1, 1, '#ff6b5a'); r(293, 14, 1, 1, '#ff6b5a'); }
+  r(293, 5, 25, 13, '#3a3f4c'); r(294, 6, 23, 11, '#11131a');
+  const s = String(Math.floor(m / 60) % 24).padStart(2, '0') + String(m % 60).padStart(2, '0'), xs = [296, 300, 307, 311];
+  [...s].forEach((ch, i) => DIG[ch].forEach((row, ry) => [...row].forEach((b, cx) => { if (b === '1') r(xs[i] + cx, 9 + ry, 1, 1, '#ff6b5a'); })));
+  if (frame % 8 < 5) { r(304, 10, 1, 1, '#ff6b5a'); r(304, 12, 1, 1, '#ff6b5a'); }
 }
 
 // ---------------------------------------------------------------- fundo
-export function drawBackground(r: R, H: number, m: number, frame: number) {
+export interface WallInfo {
+  notes: { col: 0 | 1 | 2; color: string }[];   // post-its do quadro de tarefas
+  instagram: number | null;                     // seguidores (null = quadro desligado)
+  sabadao: boolean;                             // quadro do SABADÃO ligado
+  mural: boolean;                               // Mural da Glória ligado
+}
+export const IG = { x: 220, y: 8, w: 42, h: 34 };
+export const SAB = { x: 265, y: 20, w: 27, h: 25 };
+export const MURAL = { x: 140, y: 8, w: 76 };
+
+export function drawBackground(r: R, H: number, m: number, frame: number, wall?: WallInfo) {
   r(0, 0, W, 46, '#7a3f34');
   for (let y = 0; y < 46; y += 5) { r(0, y, W, 1, '#5e2f27'); for (let x = (y / 5) % 2 ? 0 : 6; x < W; x += 12) r(x, y + 1, 1, 4, '#5e2f27'); }
   r(0, 46, W, 3, '#3b2a24'); r(0, 46, W, 1, '#5a4136');
   r(0, 49, W, H - 49, '#9a6a43');
   for (let y = 49; y < H; y += 6) { r(0, y, W, 1, '#7d5434'); for (let x = ((y - 49) / 6) % 2 ? 10 : 34; x < W; x += 48) r(x, y + 1, 1, 5, '#7d5434'); }
   drawWindow(r, m, frame);
-  // quadro de tarefas (preenchido na versão 0.3)
+  // quadro de tarefas: um post-it por tarefa, na cor de quem está com ela
   r(56, 7, 74, 34, '#d9dde3'); r(57, 8, 72, 32, '#f4f6f8');
   ['#ef5a6f', '#f2c94c', '#5ad18a'].forEach((c, i) => { r(59 + i * 24, 10, 21, 2, c); if (i) r(57 + i * 24, 13, 1, 26, '#d9dde3'); });
-  // mural da glória (preenchido na versão 0.4)
-  r(140, 8, 76, 33, '#17122a'); r(140, 8, 76, 5, '#3a2f10'); r(140, 12, 76, 1, '#b8902f');
-  for (let i = 0; i < 4; i++) { r(143 + i * 18, 15, 16, 25, i % 2 ? '#1d1834' : '#211b3b'); r(143 + i * 18, 31, 16, 9, '#b8902f'); r(143 + i * 18, 31, 16, 1, '#f2c94c'); }
-  [148, 177, 206].forEach((x, i) => { if ((frame + i * 3) % 10 < 6) r(x, 9, 1, 1, '#fff3c4'); });
-  // planta e relógio
-  r(226, 30, 8, 10, '#c26a3d'); r(224, 22, 12, 9, '#4f9a5c'); r(227, 18, 6, 5, '#5bb36a');
+  const per = [0, 0, 0];
+  (wall?.notes || []).forEach(n => {
+    const i = per[n.col]++; if (i >= 12) return;
+    const nx = 59 + n.col * 24 + (i % 3) * 7, ny = 14 + Math.floor(i / 3) * 6;
+    r(nx, ny, 6, 5, n.color); r(nx + 1, ny + 2, 4, 1, '#00000033');
+  });
+  // Mural da Glória: pedestais (os vencedores são desenhados por cima, na sala)
+  r(MURAL.x, 8, MURAL.w, 33, '#17122a'); r(MURAL.x, 8, MURAL.w, 5, '#3a2f10'); r(MURAL.x, 12, MURAL.w, 1, '#b8902f');
+  for (let i = 0; i < 4; i++) { r(143 + i * 18, 15, 16, 25, i % 2 ? '#1d1834' : '#211b3b'); r(143 + i * 18, 31, 16, 9, '#b8902f'); r(143 + i * 18, 31, 16, 1, '#f2c94c'); r(143 + i * 18, 39, 16, 1, '#8a6d1f'); }
+  if (wall?.mural !== false) [148, 177, 206].forEach((x, i) => { if ((frame + i * 3) % 10 < 6) r(x, 9, 1, 1, '#fff3c4'); });
+  // Instagram: um rostinho por seguidor da centena atual
+  if (wall && wall.instagram !== null) {
+    const { x, y, w, h } = IG;
+    r(x, y, w, h, '#fbf7fb'); r(x, y, w, 3, '#e1306c'); r(x + w - 8, y, 8, 3, '#f9a03f');
+    const count = wall.instagram % 100;
+    for (let s = 0; s < 100; s++) {
+      const cx = x + 2 + (s % 13) * 3, cy = y + 5 + Math.floor(s / 13) * 4;
+      if (cy > y + h - 4) break;
+      if (s >= count) { r(cx, cy + 1, 1, 1, '#ebe1ee'); continue; }
+      const sk = ['#f6d3b8', '#e0ac85', '#c68b62', '#8d5a3b'][Math.floor(hsh(s) * 4)], bd = ['#e1306c', '#833ab4', '#f9a03f', '#3fb6a8', '#3d4a7a'][Math.floor(hsh(s + 7) * 5)];
+      r(cx, cy, 2, 1, sk); r(cx, cy + 1, 2, 2, bd);
+    }
+  } else { r(IG.x + 6, IG.y + 6, 30, 22, '#3a3f4c'); r(IG.x + 8, IG.y + 8, 26, 18, '#6b7a96'); r(IG.x + 14, IG.y + 14, 10, 8, '#c9d4ff'); }
+  // SABADÃO
+  if (wall?.sabadao) { const { x, y, w, h } = SAB; r(x, y, w, h, '#f4f6f8'); r(x, y, w, 5, '#ef5a6f'); r(x, y + h - 1, w, 1, '#c9ccd4'); }
   drawClock(r, m, frame);
+  r(300, 24, 12, 22, '#2b2f3a'); r(301, 25, 10, 5, '#3a4050'); r(304, 32, 4, 1, '#5ad18a'); r(302, 40, 8, 2, '#1c1d26'); // máquina de café
 }
 
 // ---------------------------------------------------------------- copa
 export function drawCopa(r: R, frame: number) {
   const { x, y, w } = COPA;
-  // armário alto e máquina de café na parede
-  r(x + 2, 24, 18, 22, '#cfd5e0'); r(x + 2, 24, 18, 1, '#e8ecf2'); r(x + 10, 26, 1, 18, '#aab2c2');
-  r(x + 48, 30, 12, 16, '#2b2f3a'); r(x + 49, 31, 10, 4, '#3a4050'); r(x + 52, 37, 4, 1, '#5ad18a');
   // bancada
   r(x, y, w, 4, '#e8ecf2'); r(x, y, w, 1, '#ffffff'); r(x, y + 4, w, 12, '#8b93a7'); r(x, y + 15, w, 1, '#4e5568');
   for (let i = 0; i < 4; i++) r(x + 4 + i * 17, y + 7, 14, 6, '#7a8296');
@@ -162,3 +189,13 @@ export function guest(c: CanvasRenderingContext2D, x: number, y: number, i: numb
   const tones = ['#e0ac85', '#c68b62', '#f6d3b8', '#8d5a3b'];
   person(c, x, y, { sex: i % 2 ? 'f' : 'm', skin: tones[i % 4], hair: i % 2 ? '#3b2418' : '#141010', hs: i % 2 ? 'longo' : 'curto', out: 'social', oc: '#6b7390' });
 }
+
+// ---------------------------------------------------------------- captação (anda pelos corredores com a câmera)
+export function walkerSpot(i: number, rows: number, t: number) {
+  const aisles = [ROW0 + 18, ...(rows > 1 ? [ROW0 + ROW_H + 18] : [])].map(y => Math.min(y, ROW0 + (rows - 1) * ROW_H + 26));
+  const span = 214, speed = 9; // px por segundo
+  const ph = (t / 1000 * speed + i * 97) % (2 * span);
+  const x = 6 + (ph < span ? ph : 2 * span - ph);
+  return { x: Math.round(x), y: aisles[i % aisles.length], dir: ph < span ? 1 : -1 };
+}
+export function drawCamera(r: R, x: number, y: number) { r(x + 6, y + 13, 5, 4, '#22252f'); r(x + 7, y + 14, 2, 2, '#6ea8ff'); r(x + 9, y + 12, 2, 1, '#c5ccd8'); }
