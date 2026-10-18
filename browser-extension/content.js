@@ -22,8 +22,12 @@
   // Observed in the user's ChatGPT composer: the unlabeled test ID was replaced
   // by localized "Parar" and this rounded square. Do not accept generic audio Stop.
   const chatgptStopPath = 'M4.5 5.75C4.5 5.05964 5.05964 4.5 5.75 4.5H14.25C14.9404 4.5 15.5 5.05964 15.5 5.75V14.25C15.5 14.9404 14.9404 15.5 14.25 15.5H5.75C5.05964 15.5 4.5 14.9404 4.5 14.25V5.75Z';
+  // Observed AI Studio run control: no aria-label; its own span says Stop.
+  const studioRunControl = b => source === 'aistudio' && b.matches('button.ctrl-enter-submits');
+  const studioStop = b => studioRunControl(b) && visible(b) &&
+    [...b.querySelectorAll('span')].some(s=>/^(stop|parar|interromper)$/i.test((s.textContent||'').trim()));
   function runningNow() {
-    if ([...document.querySelectorAll('button')].some(executing)) return true;
+    if ([...document.querySelectorAll('button')].some(b=>executing(b)||studioStop(b))) return true;
     if (source !== 'chatgpt') return false;
     return findComposers().flatMap(c=>[...c.querySelectorAll('button')]).some(b =>
       visible(b) && /^(parar|stop)$/i.test((b.getAttribute('aria-label') || '').trim()) &&
@@ -32,11 +36,18 @@
   const controlHistory = [];
   function diagnostic() {
     const composers = findComposers();
-    const controls = composers.length ? [...new Set(composers.flatMap(c=>[...c.querySelectorAll('button')]))].slice(0,20) : [...document.querySelectorAll('button')].filter(executing).slice(0,20);
+    // AI Studio may use a textarea outside the composer structures above.
+    // Capture control metadata even when detection fails; never inspect prompts.
+    const controls = composers.length ? [...new Set(composers.flatMap(c=>[...c.querySelectorAll('button')]))].slice(0,20) : [...document.querySelectorAll('button')].filter(b=>executing(b)||studioRunControl(b)).slice(0,20);
     const attributes = (element,names) => Object.fromEntries(names.map(name=>[name,(element.getAttribute(name)||'').slice(0,100)]));
     // This diagnostic stays in the popup. No textContent, values, URLs or prompts.
-    return {version:'0.5.7',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
-      ...attributes(b,['aria-label','title','data-testid','aria-disabled','id','data-state']),disabled:!!b.disabled,visible:!!visible(b),
+    return {version:'0.5.9',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
+      ...attributes(b,['aria-label','title','data-testid','aria-disabled','id','data-state','mattooltip','data-mat-icon-name']),disabled:!!b.disabled,visible:!!visible(b),
+      executionLabel:studioRunControl(b)?[...b.querySelectorAll('span')].map(s=>(s.textContent||'').trim()).find(t=>/^(stop|parar|interromper|run|executar)$/i.test(t))||'':'',
+      materialIcons:[...b.querySelectorAll('mat-icon, span.material-symbols-outlined')].slice(0,4).map(i=>{
+        const name=(i.textContent||'').trim();
+        return /^(stop|stop_circle|cancel|close|play_arrow|send|pause|progress_activity)$/i.test(name)?name:'';
+      }),
       icons:[...b.querySelectorAll('svg use')].slice(0,4).map(u=>{
         const ref=u.getAttribute('href')||u.getAttribute('xlink:href')||'';
         return /^#[a-zA-Z0-9_-]{1,100}$/.test(ref)?ref:'';

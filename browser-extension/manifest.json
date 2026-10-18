@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sala 8-bit — atividade de IA",
-  "version": "0.5.7",
+  "version": "0.5.9",
   "description": "Sinaliza execuções de IA sem enviar mensagens ou prompts.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjx2V5ObJe7jeQWe3aucIkkod50ss3bwdyKgWdtb90Os202epZhPy1SmKYlugI/8/09jyLuAKfBybDNAKfQA31HloRHELwd7aQ4kzMyPkvcr/hLdfDRjwvRUsRcjGfPKCFmdeB/biOCi++qwv8A5QVQYNwDd462B+/JXIOQRP8iF5Ttu1JZUdaAhYJEtfbYv6mG4Z2st9eaqBgHh1mNecu0wTc4yDrDDuWYNEnmv19Zffyk2NNBYy7e/xGoh5Nv6og0PSZYS5u4t3ys5IWqjc2U71xoLeVzhUXl04ex3s4A+AsFrfikq3HGauIjlTk7QavMJ8pYfxuVmWyMFZ4Nh8KQIDAQAB",
   "permissions": [

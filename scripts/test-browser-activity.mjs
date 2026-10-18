@@ -10,15 +10,15 @@ async function sample(labels,host='chatgpt.com',withDiagnostic=false) {
     const item=typeof value==='string'?{label:value}:value;
     const testId=item.testId || (item.stopTestId?'stop-button':'');
     return {outsideComposer:!!item.outsideComposer,disabled:!!item.disabled,getClientRects:()=>item.hidden?[]:[{}],
-      matches:selector=>!!testId && selector.includes(`"${testId}"`),
+      matches:selector=>selector==='button.ctrl-enter-submits'?!!item.studioRun:!!testId && selector.includes(`"${testId}"`),
       getAttribute:name=>({'aria-label':item.label,'data-testid':testId,'aria-disabled':item.ariaDisabled?'true':null}[name]??null),
-      querySelectorAll:selector=>selector==='svg path' && item.path?[{getAttribute:name=>name==='d'?item.path:null}]:[]};
+      querySelectorAll:selector=>selector==='span'?(item.spans||[]).map(textContent=>({textContent})):selector==='svg path' && item.path?[{getAttribute:name=>name==='d'?item.path:null}]:[]};
   });
   const composer={getClientRects:()=>[{}],querySelectorAll:()=>buttons.filter(b=>!b.outsideComposer)};
   const stale={getClientRects:()=>[{}],querySelectorAll:()=>[]};
   const editors=[stale,composer].map(c=>({closest:()=>c,get value(){throw new Error('prompt must not be read');}}));
   const context={location:{hostname:host,origin:`https://${host}`,pathname:'/c/private-id'},crypto:webcrypto,TextEncoder,
-    document:{documentElement:{},querySelectorAll:selector=>selector==='button'?buttons:selector.startsWith('[id=')?editors:[],getElementById:()=>editors[0]},
+    document:{documentElement:{},querySelectorAll:selector=>selector==='button'?buttons:selector.startsWith('[id=') && host!=='aistudio.google.com'?editors:[],getElementById:()=>editors[0]},
     MutationObserver:class{observe(){}},chrome:{runtime:{sendMessage:async value=>messages.push(value),onMessage:{addListener(fn){listener=fn;}}}},setInterval(){},setTimeout};
   vm.runInNewContext(code,context);
   for (let i=0;i<100 && !messages.length;i++) await new Promise(resolve=>setTimeout(resolve,5));
@@ -43,7 +43,7 @@ assert.equal((await sample([{label:'Stop streaming',ariaDisabled:true}])).runnin
 for(const label of ['Parar transmissão','Interromper transmissão','Parar de responder']) assert.equal((await sample([label])).running,true);
 const diagnostic=await sample([{testId:'composer-stop-button'}],'chatgpt.com',true);
 assert.equal(diagnostic.running,true);
-assert.equal(diagnostic.version,'0.5.7');
+assert.equal(diagnostic.version,'0.5.9');
 assert.equal(JSON.stringify(diagnostic).includes('private-id'),false);
 assert.deepEqual(Object.keys(diagnostic).sort(),['composerFound','controlHistory','controls','running','service','version']);
 assert.equal(diagnostic.controlHistory.length,1);
@@ -63,3 +63,14 @@ for (const [host,source] of [['claude.ai','claude'],['labs.google','flow'],['ais
   assert.equal((await sample([],host)).source,source);
 }
 console.log('Verificações de execução, controles ocultos, serviços e privacidade da extensão passaram.');
+const studioDiagnostic=await sample([{studioRun:true,spans:['Run','Ctrl']},{label:'Conta do Google: private@example.com'}],'aistudio.google.com',true);
+assert.equal(studioDiagnostic.composerFound,false);
+assert.equal(studioDiagnostic.running,false,'diagnostic capture must not imply execution');
+assert.equal(studioDiagnostic.controls.length,1);
+assert.equal(studioDiagnostic.controls[0].executionLabel,'Run');
+assert.equal(JSON.stringify(studioDiagnostic).includes('private@example.com'),false);
+const studioControl={studioRun:true,spans:['progress_activity','Stop']};
+assert.equal((await sample([studioControl],'aistudio.google.com')).running,true);
+for(const change of [{disabled:true},{hidden:true},{ariaDisabled:true},{studioRun:false},{spans:['Run','Ctrl']}])
+  assert.equal((await sample([{...studioControl,...change}],'aistudio.google.com')).running,false);
+assert.equal((await sample([studioControl],'claude.ai')).running,false);
