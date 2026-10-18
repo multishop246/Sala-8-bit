@@ -8,6 +8,7 @@
   const executing = b => visible(b) && (b.matches('[data-testid="stop-button"], [data-testid="composer-stop-button"]') || stopLabels.test((b.getAttribute('aria-label') || '').trim()) || stopLabels.test((b.getAttribute('title') || '').trim()));
   function findComposers() {
     const candidates = [...document.querySelectorAll('[data-testid="composer"], [data-type="unified-composer"]')];
+    if(source==='flow') candidates.push(...document.querySelectorAll('flow-base-prompt-box'));
     for (const input of document.querySelectorAll('[id="prompt-textarea"], [contenteditable="true"][role="textbox"]')) {
       // ChatGPT can leave an old editor mounted when navigating conversations.
       // Include every editor's form rather than trusting the first duplicate ID.
@@ -26,8 +27,12 @@
   const studioRunControl = b => source === 'aistudio' && b.matches('button.ctrl-enter-submits');
   const studioStop = b => studioRunControl(b) && visible(b) &&
     [...b.querySelectorAll('span')].some(s=>/^(stop|parar|interromper)$/i.test((s.textContent||'').trim()));
+  // Flow replaces the generate component with a separate stop button while busy.
+  const flowStop = b => source==='flow' && visible(b) && !!b.closest('flow-base-prompt-box') &&
+    /^(stop|parar|interromper|stop generation|parar geração|parar a geração|interromper geração|cancel generation|cancelar geração)$/i.test((b.getAttribute('aria-label')||'').trim()) &&
+    [...b.querySelectorAll('mat-icon, span.material-symbols-outlined')].some(i=>(i.textContent||'').trim()==='stop');
   function runningNow() {
-    if ([...document.querySelectorAll('button')].some(b=>executing(b)||studioStop(b))) return true;
+    if ([...document.querySelectorAll('button')].some(b=>executing(b)||studioStop(b)||flowStop(b))) return true;
     if (source !== 'chatgpt') return false;
     return findComposers().flatMap(c=>[...c.querySelectorAll('button')]).some(b =>
       visible(b) && /^(parar|stop)$/i.test((b.getAttribute('aria-label') || '').trim()) &&
@@ -41,7 +46,7 @@
     const controls = composers.length ? [...new Set(composers.flatMap(c=>[...c.querySelectorAll('button')]))].slice(0,20) : [...document.querySelectorAll('button')].filter(b=>executing(b)||studioRunControl(b)).slice(0,20);
     const attributes = (element,names) => Object.fromEntries(names.map(name=>[name,(element.getAttribute(name)||'').slice(0,100)]));
     // This diagnostic stays in the popup. No textContent, values, URLs or prompts.
-    return {version:'0.5.10',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
+    return {version:'0.5.12',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
       ...attributes(b,['aria-label','title','data-testid','aria-disabled','id','data-state','mattooltip','data-mat-icon-name']),disabled:!!b.disabled,visible:!!visible(b),
       executionLabel:studioRunControl(b)?[...b.querySelectorAll('span')].map(s=>(s.textContent||'').trim()).find(t=>/^(stop|parar|interromper|run|executar)$/i.test(t))||'':'',
       materialIcons:[...b.querySelectorAll('mat-icon, span.material-symbols-outlined')].slice(0,4).map(i=>{

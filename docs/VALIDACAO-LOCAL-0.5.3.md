@@ -101,3 +101,11 @@ O diagnóstico enviado pelo usuário confirmou source=aistudio, running=true ent
 ## Flow — novo domínio na extensão 0.5.10
 
 O endereço informado pelo usuário usa flow.google.com. A extensão não era injetada nessa origem e o receptor também não a autorizava, pois somente labs.google estava cadastrado. Foram adicionados o domínio exato ao manifest, a classificação flow e a validação de origem no receptor. Os testes cobrem injeção declarada, serviço, início/fim entregue e regressões dos demais serviços. A página real foi aberta para inspeção, sem iniciar geração nem gastar créditos. A conexão da aba após recarregar e a detecção durante uma geração real continuam pendentes. Nenhum identificador de projeto do usuário foi incluído nos arquivos.
+
+## Flow — contêiner de comando na extensão 0.5.11
+
+O diagnóstico 0.5.10 confirmou HTTP 200, mas controles vazios. A inspeção DOM real mostrou o editor dentro de flow-base-prompt-box; seus pais imediatos não contêm os botões, que ficam em submit-controls, com flow-generate-icon-button. A versão 0.5.11 inclui o contêiner completo no diagnóstico e aceita rótulos explícitos de parada somente nesse componente do Flow. Iniciar geração não sinaliza execução. A estrutura de repouso foi observada; rótulos durante geração ainda precisam de captura real. Os testes de contêiner, rótulo, visibilidade, serviço, entrega e popup passaram. Não foi iniciada geração paga pelo agente.
+
+## Flow — controle real capturado e extensão 0.5.12
+
+O histórico real 0.5.11 mostrou, em 1792361489644, Parar habilitado e renderizado, com materialIcons stop, dentro dos controles do quadro de comando. Ainda enviou somente running=false. A detecção dependia do ancestral específico flow-generate-icon-button, observado apenas no botão de iniciar em repouso. A versão 0.5.12 aceita o botão com rótulo explícito de parada e ícone stop dentro de flow-base-prompt-box, sem depender do componente de iniciar. Testes com o controle capturado passaram; versões desabilitadas, ocultas, sem ícone, fora do quadro e em outros serviços não contam. Detecção/entrega reais após atualização continuam pendentes.
