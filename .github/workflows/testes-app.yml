@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -13,6 +16,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
+      - run: npm run test:db
+      - run: node scripts/test-browser-activity.mjs
+      - run: node scripts/test-browser-delivery.mjs
+      - run: node scripts/test-browser-popup.mjs
       - run: npm run build
   windows:
     runs-on: windows-latest

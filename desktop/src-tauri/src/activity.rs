@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Default, serde::Deserialize)]
-pub struct Activity { pub agents: u32, pub music: bool }
+pub struct Activity { pub agents: u32 }
 pub struct Probe(Arc<Mutex<Option<(Instant, Activity)>>>);
 impl Probe {
     pub fn spawn() -> Self {

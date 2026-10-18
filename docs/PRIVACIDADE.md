@@ -22,6 +22,8 @@ O tempo por aplicativo só é medido por quem usa o app de computador. Sem ele, 
 
 O gestor (com coroa) não é monitorado.
 
+Na versão de testes 0.5.2, a extensão opcional consulta controles de execução nas páginas de IA e envia ao aplicativo local somente serviço, hash da conversa e execução. Os plugins opcionais de Codex/Claude Code recebem eventos de tarefa e descartam seu conteúdo, mantendo localmente apenas o hash da sessão, estado e identidade do processo. Esses identificadores não são enviados ao Supabase; o servidor recebe o total de execuções e o tempo proporcional. A reprodução de mídia é consultada pelo estado do Windows, sem nomes de faixas. Instalação e limitações: [atividade de IA 0.5.2](ATIVIDADE-IA-0.5.2.md).
+
 Os dados ficam no projeto Supabase **da própria empresa**. Os autores do Sala 8-bit não têm acesso a eles.
 
 ## Modelo de comunicado

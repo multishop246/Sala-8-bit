@@ -100,7 +100,7 @@ export type MemberState = 'fora' | 'trabalhando' | 'cafe' | 'almoco' | 'reuniao'
 export type Device = 'computador' | 'celular';
 
 export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string; active_task_id?: string | null;
-  app_now?: string | null; app_cat?: string | null; music?: boolean; agents?: number; idle?: boolean; agent_seen_at?: string | null }
+  app_now?: string | null; app_cat?: string | null; music?: boolean; agents?: number; idle?: boolean; agent_seen_at?: string | null; agent_live_at?: string | null }
 export interface Pause { id: string; workspace_id: string; user_id: string; kind: 'cafe' | 'almoco'; day: string; started_at: string; ended_at: string | null }
 export interface Meeting { id: string; workspace_id: string; subject: string; created_by: string; visitors: number; outsiders: number; started_at: string; ended_at: string | null }
 export interface MeetingMember { meeting_id: string; workspace_id: string; user_id: string; joined_at: string; left_at: string | null }

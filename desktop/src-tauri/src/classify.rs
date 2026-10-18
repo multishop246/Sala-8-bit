@@ -16,7 +16,7 @@ pub struct Config {
 fn default_idle() -> u64 { 5 }
 
 pub const WEB: &str = "Navegando na internet";
-const BROWSERS: &[&str] = &["chrome", "google chrome", "msedge", "microsoft edge", "firefox", "safari", "brave", "brave browser", "opera", "arc", "vivaldi", "chromium"];
+const BROWSERS: &[&str] = &["chrome", "google chrome", "msedge", "microsoft edge", "firefox", "safari", "brave", "brave browser", "opera", "opera gx", "operagx", "arc", "vivaldi", "chromium"];
 const MUSIC_TITLES: &[&str] = &["youtube music", "spotify", "deezer", "soundcloud", "tidal", "apple music"];
 
 /// minúsculas e sem acentos, para comparar nomes
@@ -69,12 +69,6 @@ pub fn classify(app: &str, title: &str, idle_secs: u64, agents: u32, cfg: &Confi
     Minute { app: shown, cat, music_hint }
 }
 
-/// Apps de música abertos (o fone aparece no personagem).
-pub fn is_music_process(name: &str) -> bool {
-    let n = norm(&display_name(name));
-    ["spotify", "spotify music", "music", "deezer", "tidal", "amazon music", "youtube music", "apple music", "applemusic"].iter().any(|m| n == *m)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,15 +108,13 @@ mod tests {
     }
     #[test] fn acentos() { assert!(has_any("Gerenciador de Anúncios", &["gerenciador de anuncios".into()])); }
     #[test] fn agentes_e_musica() {
-        assert!(is_music_process("Spotify.exe"));
         assert!(classify("Google Chrome", "Música - YouTube Music", 0, 0, &cfg()).music_hint);
     }
     #[test] fn notes_browser_and_windows_nulls() {
         assert_eq!(display_name("Notepad.exe\0\0"), "Notepad");
         assert_eq!(classify("Notepad.exe\0", "anotacoes", 0, 0, &cfg()).cat, "prod");
         assert_eq!(classify("opera.exe", "Pesquisa", 0, 0, &cfg()).cat, "prod");
-        assert!(is_music_process("Spotify.exe\0"));
-        assert!(is_music_process("Spotify Music"));
+        assert_eq!(classify("OperaGX.exe", "Pesquisa", 0, 0, &cfg()).app, WEB);
         assert_eq!(classify("Codex.exe", "Codex", 400, 0, &cfg()).cat, "idle");
     }
 }

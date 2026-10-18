@@ -399,14 +399,49 @@ await t('0.5 · apps do dia: só a própria pessoa ou admin', async () => {
   await as(V1, () => q(`select * from day_apps($1,$2,$3)`, [w5.id, V2, d]));
   await as(V2, () => expectErr(() => q(`select * from day_apps($1,$2,$3)`, [w5.id, V1, d]), /próprios/));
 });
+await t('0.5.2 · indicadores ao vivo não criam minutos e não alteram outro membro', async () => {
+  const count = (await q(`select count(*)::int n from activity_minutes`)).rows[0].n;
+  const other = (await q(`select agents,music,agent_live_at from statuses where workspace_id=$1 and user_id=$2`, [w5.id,V1])).rows[0];
+  await asAnon(() => q(`select agent_live($1,$2::jsonb)`, [tok,JSON.stringify({app:'Codex',cat:'prod',agents:3,music:true,idle:false})]));
+  const current = (await q(`select agents,music,agent_live_at from statuses where workspace_id=$1 and user_id=$2`, [w5.id,V2])).rows[0];
+  if (current.agents !== 3 || !current.music || !current.agent_live_at) throw new Error('sinal não atualizado');
+  if ((await q(`select count(*)::int n from activity_minutes`)).rows[0].n !== count) throw new Error('criou minuto indevido');
+  const after = (await q(`select agents,music,agent_live_at from statuses where workspace_id=$1 and user_id=$2`, [w5.id,V1])).rows[0];
+  if (JSON.stringify(after) !== JSON.stringify(other)) throw new Error('alterou outro membro');
+});
+await t('0.5.2 · terminar execução e pausar música zeram indicadores imediatamente', async () => {
+  await asAnon(() => q(`select agent_live($1,$2::jsonb)`, [tok,JSON.stringify({app:'Codex',cat:'prod',agents:0,music:false,idle:false})]));
+  const current = (await q(`select agents,music from statuses where workspace_id=$1 and user_id=$2`, [w5.id,V2])).rows[0];
+  if (current.agents !== 0 || current.music) throw new Error('manteve sinal do minuto anterior');
+  await asAnon(() => expectErr(() => q(`select agent_live('errado','{}')`), /não autorizado/));
+});
+await t('0.5.2 · execução de cinco segundos não aplica bônus ao minuto inteiro', async () => {
+  const minute=new Date(Date.now()-10*60000).toISOString();
+  await asAnon(() => q(`select agent_report($1,$2::jsonb)`,[tok,JSON.stringify([{m:minute,app:'Figma',cat:'prod',agents:3,music:false,productive_weight:13/12,base_weight:1,ia_fraction:1/12}])]));
+  const row=(await q(`select productive_weight::float8 p,base_weight::float8 b,ia_fraction::float8 i from activity_minutes where workspace_id=$1 and user_id=$2 and minute=date_trunc('minute',$3::timestamptz)`,[w5.id,V2,minute])).rows[0];
+  if (Math.abs(row.p-13/12)>0.00001 || row.b!==1 || Math.abs(row.i-1/12)>0.00001) throw new Error(JSON.stringify(row));
+  const live=(await q(`select agents,music from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  if (live.agents!==0 || live.music) throw new Error('histórico ressuscitou indicador ao vivo');
+  const day=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
+  const summary=(await as(V1,async()=>(await q(`select * from day_summary($1,$2)`,[w5.id,day])).rows)).find(x=>x.user_id===V2);
+  if (summary.produtivo_min!==5 || summary.bonus_ia_min!==1 || summary.ia_min!==1) throw new Error('bônus parcial arredondado como minuto inteiro: '+JSON.stringify(summary));
+  const glory=(await as(V1,async()=>(await q(`select * from glory_scores($1,current_date)`,[w5.id])).rows)).find(x=>x.user_id===V2);
+  if (glory.tarefa_min!==5 || glory.ia_min!==1) throw new Error('ranking ignorou frações: '+JSON.stringify(glory));
+});
 await t('0.5 · depois de encerrar o expediente o app para de gravar', async () => {
   await as(V2, () => q(`select set_state($1,'encerrado',current_date)`, [w5.id]));
   const r = await asAnon(async () => (await q(`select agent_report($1, $2::jsonb) r`, [tok, JSON.stringify([{ m: new Date().toISOString(), app: 'Figma', cat: 'prod' }])])).rows[0].r);
   if (r.estado !== 'encerrado' || r.gravados !== 0) throw new Error(JSON.stringify(r));
 });
+await t('0.5.2 · expediente encerrado mantém IA e música desligadas', async () => {
+  await asAnon(() => q(`select agent_live($1,$2::jsonb)`, [tok,JSON.stringify({app:'Codex',cat:'prod',agents:3,music:true})]));
+  const current = (await q(`select agents,music from statuses where workspace_id=$1 and user_id=$2`, [w5.id,V2])).rows[0];
+  if (current.agents !== 0 || current.music) throw new Error('sinal ligado após encerrar');
+});
 await t('0.5 · código revogado para de funcionar', async () => {
   const id = (await q(`select id from agent_tokens where user_id=$1`, [V2])).rows[0].id;
   await as(V2, () => q(`select revoke_agent_token($1)`, [id]));
   await asAnon(() => expectErr(() => q(`select agent_config($1)`, [tok]), /não autorizado/));
+  await asAnon(() => expectErr(() => q(`select agent_live($1,'{}')`, [tok]), /não autorizado/));
 });
 console.log(`\n${ok} ok, ${fail} falhas`); process.exit(fail ? 1 : 0);

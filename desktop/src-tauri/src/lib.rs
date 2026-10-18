@@ -4,6 +4,9 @@ mod classify;
 mod config;
 mod tracker;
 mod activity;
+mod media;
+mod browser_activity;
+mod hook_activity;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
