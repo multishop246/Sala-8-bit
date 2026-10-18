@@ -109,3 +109,31 @@ O diagnóstico 0.5.10 confirmou HTTP 200, mas controles vazios. A inspeção DOM
 ## Flow — controle real capturado e extensão 0.5.12
 
 O histórico real 0.5.11 mostrou, em 1792361489644, Parar habilitado e renderizado, com materialIcons stop, dentro dos controles do quadro de comando. Ainda enviou somente running=false. A detecção dependia do ancestral específico flow-generate-icon-button, observado apenas no botão de iniciar em repouso. A versão 0.5.12 aceita o botão com rótulo explícito de parada e ícone stop dentro de flow-base-prompt-box, sem depender do componente de iniciar. Testes com o controle capturado passaram; versões desabilitadas, ocultas, sem ícone, fora do quadro e em outros serviços não contam. Detecção/entrega reais após atualização continuam pendentes.
+
+## Flow — confirmação real 0.5.12
+
+O diagnóstico final enviado pelo usuário confirmou source=flow: running=true entregue com HTTP 200 em 1792362047069 e running=false entregue com HTTP 200 em 1792362058274, intervalo aproximado de 11,2 segundos. O histórico mostrou Parar habilitado com ícone stop durante a execução e retorno a Iniciar geração desabilitado depois. O ciclo de detecção e entrega ao aplicativo foi validado neste teste; não comprova todos os modos ou tarefas de mídia em segundo plano do Flow.
+
+## Validação nativa — distinção entre Claude e Claude Code
+
+A conferência local encontrou sinal Codex com running=false e processo ainda aberto, comprovando apenas repouso nessa leitura. O conector Claude Code está configurado, mas não havia sinais desse serviço no teste. O usuário esclareceu que executou uma conversa normal no Claude de desktop, não o Claude Code. Não considerar esse teste como falha ou validação do conector Claude Code. A janela de desktop ficou acessível após restaurar da minimização; a inspeção do controle de parada durante uma resposta está pendente. A última compilação 39171788458 já aprovou o job web; Windows ainda estava em andamento na leitura.
+
+O workflow 39171788458 concluiu com Success: web em 27 segundos e Windows em 4 minutos e 16 segundos. O instalador foi gerado como artefato. No primeiro aviso de execução nativa do Claude, a consulta já mostrou Send message desabilitado e nenhum botão de parada; portanto a execução ativa não foi capturada. Não alterar o detector com base nesse estado de repouso.
+
+## Claude de desktop — controle ativo observado
+
+Após o usuário iniciar um pedido longo, a acessibilidade da janela nativa mostrou Stop response, rótulo já aceito pelo detector. A edição Sala 8-bit Testes estava fechada nessa retomada; foi reaberta, preservando pareamento com o projeto de testes. Após atualizar a prévia, App de computador conectado e IA 1 apareceram enquanto Stop response continuava na janela Claude. Uma consulta paralela mostrou o conector Codex em running=false. Isso é evidência de contagem durante a resposta nativa; o retorno a zero ainda precisa de observação. Não foi necessário alterar o detector com base no rótulo observado.
+
+A tentativa de interromper a resposta de teste pela automação da janela falhou por geometria indisponível/fora dos limites da janela. Não houve confirmação de clique ou interrupção. O usuário foi solicitado a confirmar se a resposta ainda estava em execução e a parar manualmente, se necessário. O contador IA 1 sozinho não comprova o encerramento. Não registrar esse teste como concluído antes de observar o retorno ao repouso.
+
+## Claude de desktop — possível controle de parada retido
+
+O usuário confirmou que a resposta terminou naturalmente. Mesmo após isso, a consulta de acessibilidade continuou expondo Stop response e a prévia manteve IA 1. Isso levanta a hipótese de controle antigo/oculto retido no Electron; a contagem anterior não comprova por si só uma execução corrente. A versão nativa 0.5.4 filtra controles offscreen ou sem área quando a janela está restaurada, usando IsIconic para distinguir minimização real. Janelas minimizadas preservam a elegibilidade anterior para trabalho em segundo plano; a ambiguidade de controles retidos nessa condição ainda requer validação. A sintaxe PowerShell passou. Compilação e validação de repouso da edição de testes em andamento. Não considerar a correção confirmada antes dessa observação.
+
+## Classificação de Codex e WWM
+
+O usuário confirmou wwm como o jogo Where Winds Meet; permaneceu na categoria padrão de distração. A configuração Apps de IA do escritório de testes continha ChatGPT, Claude, Gemini e Copilot, sem Codex. Codex foi acrescentado pela interface, salvamento e persistência após recarregar foram confirmados. A edição de testes foi reiniciada para buscar imediatamente a configuração (cache normal de dez minutos). Isso muda a classificação do aplicativo, não cria sinal de execução nem bônus por presença. Registros históricos já gravados não foram alterados. A edição 0.5.4 compilou e passou nos 13 testes Rust, mas o ajuste de repouso do Claude continuava pendente. Ao restaurar novamente a janela Claude, a acessibilidade passou a mostrar Send message desabilitado, sem Stop response.
+
+## Diagnóstico separado das fontes após conclusão do Claude
+
+O exemplo activity-check usa o detector nativo real e os conectores, sem abrir porta de navegador nem alterar pareamento. Durante a execução desta tarefa, registrou native_agents=0 em todas as amostras observadas; hook_agents passou de 0 para 1. Isso demonstra que o contador agregado IA 1 podia corresponder ao próprio Codex executando a investigação, não ao Claude ainda trabalhando. As inferências anteriores baseadas somente no total devem ser lidas com essa correção: não ficou comprovado que o Claude era a fonte daquele total. O repouso nativo foi observado na edição 0.5.4; não atribuir a queda exclusivamente ao novo filtro, pois restaurar a janela também atualizou a árvore acessível. O teste não comprova todos os modos minimizados ou várias conversas nativas em paralelo.
