@@ -2,7 +2,7 @@ const records = new Map();
 const pending = new Map();
 let diagnosticQueue = Promise.resolve();
 const endpoint = 'http://127.0.0.1:43187/activity';
-const allowed = new Set(['chatgpt.com','chat.openai.com','gemini.google.com','aistudio.google.com','labs.google','claude.ai']);
+const allowed = new Set(['chatgpt.com','chat.openai.com','gemini.google.com','aistudio.google.com','labs.google','flow.google.com','claude.ai']);
 const clientPrefix = chrome.storage.local.get('clientPrefix').then(async value => {
   if (value.clientPrefix) return value.clientPrefix;
   const prefix = crypto.randomUUID().replaceAll('-','').slice(0,16);

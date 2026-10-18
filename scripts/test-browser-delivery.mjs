@@ -13,7 +13,7 @@ function worker(fetcher) {
     alarms:{create(){},onAlarm:{addListener(){}}}
   }};
   vm.runInNewContext(code,context);
-  return {storage,close:()=>removed(1),send:running=>new Promise(resolve=>receive({type:'sample',source:'chatgpt',conversation:'a'.repeat(64),running},{tab:{id:1},url:'https://chatgpt.com/c/private-id'},resolve))};
+  return {storage,close:()=>removed(1),send:(running,host='chatgpt.com',source='chatgpt')=>new Promise(resolve=>receive({type:'sample',source,conversation:'a'.repeat(64),running},{tab:{id:1},url:`https://${host}/c/private-id`},resolve))};
 }
 let release;
 const gate=new Promise(resolve=>{release=resolve;});
@@ -40,4 +40,9 @@ assert.equal(denied.storage.recentEvents[0].ok,false);
 const offline=worker(async()=>{throw new TypeError('unreachable');});
 await offline.send(true);
 assert.equal(offline.storage.connection.reason,'network');
+const flowRequests=[];
+const flowWorker=worker(async(url,args)=>{flowRequests.push(JSON.parse(args.body));return {ok:true,status:200};});
+await flowWorker.send(true,'flow.google.com','flow');
+await flowWorker.send(false,'flow.google.com','flow');
+assert.deepEqual(flowRequests.map(r=>[r.source,r.running]),[['flow',true],['flow',false]]);
 console.log('Entrega em ordem, falhas HTTP/rede e diagnóstico sem mensagens/URLs: testes passaram.');

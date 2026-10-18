@@ -2,7 +2,7 @@
 (() => {
   const host = location.hostname;
   const source = host.includes('claude') ? 'claude' : host.includes('gemini') ? 'gemini'
-    : host.includes('aistudio') ? 'aistudio' : host === 'labs.google' ? 'flow' : 'chatgpt';
+    : host.includes('aistudio') ? 'aistudio' : ['labs.google','flow.google.com'].includes(host) ? 'flow' : 'chatgpt';
   const stopLabels = /^(stop generating|stop response|stop streaming|stop generation|stop thinking|parar de gerar|parar geração|parar a geração|parar resposta|parar de responder|parar transmissão|interromper transmissão|interromper geração|interromper resposta|cancel generation|cancelar geração)$/i;
   const visible = b => !b.disabled && b.getAttribute('aria-disabled') !== 'true' && b.getClientRects().length > 0;
   const executing = b => visible(b) && (b.matches('[data-testid="stop-button"], [data-testid="composer-stop-button"]') || stopLabels.test((b.getAttribute('aria-label') || '').trim()) || stopLabels.test((b.getAttribute('title') || '').trim()));
@@ -41,7 +41,7 @@
     const controls = composers.length ? [...new Set(composers.flatMap(c=>[...c.querySelectorAll('button')]))].slice(0,20) : [...document.querySelectorAll('button')].filter(b=>executing(b)||studioRunControl(b)).slice(0,20);
     const attributes = (element,names) => Object.fromEntries(names.map(name=>[name,(element.getAttribute(name)||'').slice(0,100)]));
     // This diagnostic stays in the popup. No textContent, values, URLs or prompts.
-    return {version:'0.5.9',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
+    return {version:'0.5.10',service:source,running:runningNow(),composerFound:composers.length>0,controls:controls.map(b=>({
       ...attributes(b,['aria-label','title','data-testid','aria-disabled','id','data-state','mattooltip','data-mat-icon-name']),disabled:!!b.disabled,visible:!!visible(b),
       executionLabel:studioRunControl(b)?[...b.querySelectorAll('span')].map(s=>(s.textContent||'').trim()).find(t=>/^(stop|parar|interromper|run|executar)$/i.test(t))||'':'',
       materialIcons:[...b.querySelectorAll('mat-icon, span.material-symbols-outlined')].slice(0,4).map(i=>{

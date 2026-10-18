@@ -93,3 +93,11 @@ Após o usuário entrar na janela nativa por e-mail, a configuração isolada co
 ## AI Studio e extensão 0.5.9
 
 O usuário confirmou início/fim no Claude. O AI Studio permaneceu sem detecção nas versões 0.5.7 e 0.5.8. A captura ampla 0.5.8 incluiu metadados de conta, por isso foi restringida novamente na 0.5.9. Uma execução de teste no AI Studio mostrou o botão button.ctrl-enter-submits sem aria-label, com spans progress_activity e Stop. A correção reconhece somente esse controle habilitado e renderizado nesse serviço. Run, controles desabilitados/ocultos e outros serviços não contam; os testes de regressão e privacidade passaram, junto com entrega e popup. A confirmação real na extensão do Opera GX ainda está pendente após recarregar extensão e aba. Nenhum conteúdo do diagnóstico do usuário foi salvo no repositório.
+
+## AI Studio — confirmação real 0.5.9
+
+O diagnóstico enviado pelo usuário confirmou source=aistudio, running=true entregue com HTTP 200 em 1792360296244 e running=false entregue com HTTP 200 em 1792360334502, aproximadamente 38,3 segundos depois. O histórico dos controles mostrou Stop habilitado durante a execução e retorno a Run ao concluir. O ciclo de detecção e entrega ao aplicativo foi validado neste teste no Opera GX. Isso não demonstra, por si só, precisão de cada segundo no relatório nem detecção de todos os modos do AI Studio.
+
+## Flow — novo domínio na extensão 0.5.10
+
+O endereço informado pelo usuário usa flow.google.com. A extensão não era injetada nessa origem e o receptor também não a autorizava, pois somente labs.google estava cadastrado. Foram adicionados o domínio exato ao manifest, a classificação flow e a validação de origem no receptor. Os testes cobrem injeção declarada, serviço, início/fim entregue e regressões dos demais serviços. A página real foi aberta para inspeção, sem iniciar geração nem gastar créditos. A conexão da aba após recarregar e a detecção durante uma geração real continuam pendentes. Nenhum identificador de projeto do usuário foi incluído nos arquivos.

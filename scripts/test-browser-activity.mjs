@@ -43,7 +43,7 @@ assert.equal((await sample([{label:'Stop streaming',ariaDisabled:true}])).runnin
 for(const label of ['Parar transmissão','Interromper transmissão','Parar de responder']) assert.equal((await sample([label])).running,true);
 const diagnostic=await sample([{testId:'composer-stop-button'}],'chatgpt.com',true);
 assert.equal(diagnostic.running,true);
-assert.equal(diagnostic.version,'0.5.9');
+assert.equal(diagnostic.version,'0.5.10');
 assert.equal(JSON.stringify(diagnostic).includes('private-id'),false);
 assert.deepEqual(Object.keys(diagnostic).sort(),['composerFound','controlHistory','controls','running','service','version']);
 assert.equal(diagnostic.controlHistory.length,1);
@@ -59,9 +59,11 @@ for(const change of [{disabled:true},{hidden:true},{ariaDisabled:true},{outsideC
 assert.equal((await sample(['Parar'])).running,false);
 assert.equal((await sample([captured],'claude.ai')).running,false);
 assert.equal((await sample([{label:'Enviar',path:'M0 0L1 1Z'}, {label:'Iniciar conversa por voz'}])).running,false);
-for (const [host,source] of [['claude.ai','claude'],['labs.google','flow'],['aistudio.google.com','aistudio'],['chat.openai.com','chatgpt']]) {
+for (const [host,source] of [['claude.ai','claude'],['labs.google','flow'],['flow.google.com','flow'],['aistudio.google.com','aistudio'],['chat.openai.com','chatgpt']]) {
   assert.equal((await sample([],host)).source,source);
 }
+const manifest=JSON.parse(readFileSync(new URL('../browser-extension/manifest.json',import.meta.url),'utf8'));
+assert.ok(manifest.content_scripts.some(s=>s.matches.includes('https://flow.google.com/*')));
 console.log('Verificações de execução, controles ocultos, serviços e privacidade da extensão passaram.');
 const studioDiagnostic=await sample([{studioRun:true,spans:['Run','Ctrl']},{label:'Conta do Google: private@example.com'}],'aistudio.google.com',true);
 assert.equal(studioDiagnostic.composerFound,false);
