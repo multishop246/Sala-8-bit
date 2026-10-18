@@ -30,6 +30,7 @@ export function Office() {
   const [chatWith, setChatWith] = useState<string | null>(null);
   const [presetTask, setPresetTask] = useState<string | null>(null);
   const [openTask, setOpenTask] = useState<string | null>(null);
+  const [boardPopup, setBoardPopup] = useState(false);
   const openChat = (userId: string, taskId?: string | null) => { setDlg(null); setOpenTask(null); setChatWith(userId); setPresetTask(taskId || null); setTab('chat'); setTimeout(() => document.getElementById('tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
   const unreadTotal = Object.values(L.unread).reduce((a, b) => a + b, 0);
   const ready = members.filter(m => m.display_name && m.consent_at);
@@ -98,7 +99,7 @@ export function Office() {
               titles: rec.mural_gloria ? L.titles : {},
               wall: { notes, instagram: rec.instagram ? (L.ready ? (L.instagram?.followers ?? 0) : null) : null, sabadao: !!rec.sabadao, mural: !!rec.mural_gloria },
               sabado: ready.filter(m => m.kind === 'membro').map(m => ({ name: m.display_name || '', works: L.saturdays.find(x => x.user_id === m.user_id && x.day === sat)?.works ?? null })),
-              onSabado: () => setDlg({ kind: 'sabado' }), onInstagram: () => setDlg({ kind: 'instagram' }), onMural: () => goTab('mural')
+              onSabado: () => setDlg({ kind: 'sabado' }), onInstagram: () => setDlg({ kind: 'instagram' }), onMural: () => goTab('mural'), onBoard: () => { setOpenTask(null); setBoardPopup(true); }
             }}
             onPerson={person} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention} />
           <div className="panel" id="tabs">
@@ -108,7 +109,7 @@ export function Office() {
               <button role="tab" aria-selected={tab === 'painel'} onClick={() => setTab('painel')}>Painel do dia</button>
               {rec.mural_gloria && <button role="tab" aria-selected={tab === 'mural'} onClick={() => setTab('mural')}>Mural da Glória</button>}
             </div>
-            {tab === 'quadro' ? <Board openTask={openTask} setOpenTask={setOpenTask} onChat={openChat} />
+            {tab === 'quadro' ? !boardPopup && <Board openTask={openTask} setOpenTask={setOpenTask} onChat={openChat} />
               : tab === 'painel' ? <DayPanel />
               : tab === 'mural' ? <MuralTab />
               : <Chat withUser={chatWith} setWithUser={id => { setChatWith(id); setPresetTask(null); }} presetTask={presetTask} onOpenTask={id => { setTab('quadro'); setOpenTask(id); }} />}
@@ -117,6 +118,9 @@ export function Office() {
         </section>
       </div>
 
+      {boardPopup && <Modal title="Quadro de tarefas" wide onClose={() => { if (openTask) setOpenTask(null); else setBoardPopup(false); }}>
+        <Board showAll openTask={openTask} setOpenTask={setOpenTask} onChat={(uid, task) => { setBoardPopup(false); openChat(uid, task); }} />
+      </Modal>}
       {dlg?.kind === 'copa' && <Modal title="Copa" onClose={() => setDlg(null)}>
         <p className="muted">É horário de almoço. Qual pausa você vai fazer?</p>
         <div className="choice">

@@ -174,7 +174,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const meetingsOpen = (snap?.meetings || []).map(m => ({ ...m, people: (snap?.meetingMembers || []).filter(x => x.meeting_id === m.id).map(x => x.user_id) }));
     const views: PersonView[] = ready.map(m => {
       const status = snap?.statuses.find(s => s.user_id === m.user_id) || null;
-      const agentOn = !!status?.agent_seen_at && now - new Date(status.agent_seen_at).getTime() < 150000;
+      const lastSignal = status?.agent_live_at || status?.agent_seen_at;
+      const agentOn = !!lastSignal && now - new Date(lastSignal).getTime() < (status?.agent_live_at ? 20000 : 150000);
       const on = !!online[m.user_id] || agentOn;
       const st = status?.state || 'fora';
       const shown: MemberState = st === 'encerrado' ? 'encerrado' : on ? (st === 'fora' ? 'trabalhando' : st) : (st === 'cafe' || st === 'almoco' ? st : 'fora');

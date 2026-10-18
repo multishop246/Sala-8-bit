@@ -1,22 +1,46 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Sala 8-bit",
-  "version": "0.5.0",
+  "version": "0.5.4",
   "identifier": "app.sala8bit.desktop",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "dmg", "app", "deb"],
+    "targets": [
+      "nsis",
+      "dmg",
+      "app",
+      "deb"
+    ],
     "category": "Productivity",
     "shortDescription": "Escritório virtual em pixel art para equipes de marketing",
     "copyright": "MIT",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "windows": { "nsis": { "languages": ["PortugueseBR"], "installMode": "currentUser" } },
-    "macOS": { "minimumSystemVersion": "11.0" }
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": [
+          "PortugueseBR"
+        ],
+        "installMode": "currentUser"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
   }
 }

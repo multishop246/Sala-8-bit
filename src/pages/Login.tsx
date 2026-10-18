@@ -48,7 +48,7 @@ export function Login({ title = 'Entre no seu escritório', hint }: { title?: st
             <form className="login" onSubmit={mail}>
               <div className="field"><label htmlFor="em">Seu e-mail</label>
                 <input id="em" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="voce@empresa.com.br" /></div>
-              <button className="cta" disabled={busy || !email}>{busy ? 'Enviando…' : 'Receber link de acesso'}</button>
+              <button className="cta" disabled={busy || !email}>{busy ? 'Enviando…' : 'Receber código de acesso'}</button>
             </form>
           </div>
         )}

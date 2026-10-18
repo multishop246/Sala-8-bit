@@ -1,0 +1,46 @@
+name: Versão de testes do app
+on:
+  push:
+    branches: [correcoes-app-teste]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run test:db
+      - run: node scripts/test-browser-activity.mjs
+      - run: node scripts/test-browser-delivery.mjs
+      - run: node scripts/test-browser-popup.mjs
+      - run: npm run build
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: 'desktop/src-tauri -> target' }
+      - name: Testes do aplicativo
+        working-directory: desktop/src-tauri
+        run: cargo test --lib
+      - name: Dependências desktop
+        working-directory: desktop
+        run: npm install
+      - name: Gerar instalador Windows para testes
+        working-directory: desktop
+        run: npm run build -- --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sala-8-bit-Windows-teste
+          path: desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error

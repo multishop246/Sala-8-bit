@@ -33,6 +33,7 @@ interface LiveProps {
   onSabado?: () => void;
   onInstagram?: () => void;
   onMural?: () => void;
+  onBoard?: () => void;
 }
 export interface RoomProps {
   desks: number;
@@ -126,7 +127,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
       const v = mm ? layout.vOf(mm.user_id) : undefined;
       // dormindo na mesa: ocioso pelo app de computador e sem agente de IA trabalhando
       const sleep = here && !!v?.idle && !v?.agents;
-      if (av) person(c, cx - 6, sleep ? s.y - 11 : s.y - 17, av, { blink: sleep || (frame + s.n * 5) % 19 === 0, music: here && !!v?.music && !sleep });
+      if (av) person(c, cx - 6, sleep ? s.y - 11 : s.y - 17, av, { blink: sleep || (frame + s.n * 5) % 19 === 0, music: here && !!v?.music });
       drawDesk(r, s.x, s.y, s.n);
       const phone = here && v?.device === 'celular' && !v?.agentOn;
       if (sleep) {
@@ -144,7 +145,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
       // robozinho: agentes de IA trabalhando
       if (here && v?.agents) { r(cx + 8, s.y - 10, 5, 5, '#203b3d'); r(cx + 9, s.y - 9, 1, 1, '#7fe3e9'); r(cx + 11, s.y - 9, 1, 1, '#7fe3e9'); r(cx + 9, s.y - 7, 3, 1, '#7fe3e9'); if (frame % 4 < 2) r(cx + 10, s.y - 11, 1, 1, '#7fe3e9'); }
       // nota musical
-      if (here && v?.music && !sleep) { const b = frame % 4 < 2 ? 0 : 1; r(cx - 13, s.y - 16 - b, 1, 4, '#f2c94c'); r(cx - 15, s.y - 13 - b, 2, 2, '#f2c94c'); r(cx - 13, s.y - 16 - b, 3, 1, '#f2c94c'); }
+      if (here && v?.music) { const b = frame % 4 < 2 ? 0 : 1; r(cx - 13, s.y - 16 - b, 1, 4, '#f2c94c'); r(cx - 15, s.y - 13 - b, 2, 2, '#f2c94c'); r(cx - 13, s.y - 16 - b, 3, 1, '#f2c94c'); }
       if (pick && !mm) { c.globalAlpha = chosen ? 0.9 : 0.35; r(s.x - 2, s.y + 23, DESK_W + 4, 2, chosen ? '#8b7bff' : '#c9c1ff'); c.globalAlpha = 1; }
     }
 
@@ -195,6 +196,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
       <canvas ref={ref} width={W} height={H} className="px" aria-label="Sala com as mesas da equipe" />
       <canvas ref={fx} width={W} height={H} className="px fx" aria-hidden="true" />
       <div className="room-ov">
+        {live?.onBoard && <button className="deskhit" aria-label="Abrir quadro de tarefas" style={box(56, 7, 74, 34)} onClick={live.onBoard} />}
         {/* áreas clicáveis (ficam embaixo das plaquinhas) */}
         {live && onCopa && <button className="deskhit" aria-label="Copa: fazer uma pausa" style={box(COPA.x, 22, COPA.w, COPA.y - 4)} onClick={onCopa} />}
         {live && onMeetingRoom && <button className="deskhit" aria-label={inMeeting ? 'Sair da reunião' : 'Sala de reunião'} style={box(MEET.x, MEET.y, MEET.w, H - MEET.y - 4)} onClick={onMeetingRoom} />}
@@ -259,7 +261,7 @@ export function Room({ desks, members, pick, live, onPerson, onCopa, onMeetingRo
                 const tt = live.taskTitle?.(mm.user_id);
                 const txt = tt || v.app || (v.device === 'celular' ? 'Pelo celular' : 'No escritório');
                 return txt.length > 24 ? txt.slice(0, 23) + '…' : txt;
-              })()}{v.agents > 0 && <span className="ia">IA {v.agents}{v.agents >= 2 ? ` · ${(1 + 0.5 * (v.agents - 1)).toFixed(1).replace('.', ',')}×` : ''}</span>}{v.music && !v.idle && <span className="mus">♪</span>}</button>;
+              })()}{v.agents > 0 && <span className="ia">IA {v.agents}{v.agents >= 2 ? ` · ${(1 + 0.5 * (v.agents - 1)).toFixed(1).replace('.', ',')}×` : ''}</span>}{v.music && <span className="mus">♪</span>}</button>;
           })}
           {layout.cafe.slice(0, 4).map((v, i) => {
             const p = cafeSpot(i), over = v.cafeLeft < 0;
