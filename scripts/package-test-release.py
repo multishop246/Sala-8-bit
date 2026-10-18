@@ -9,9 +9,9 @@ import zipfile
 root = Path(__file__).resolve().parents[1]
 version = json.loads((root / 'desktop/src-tauri/tauri.conf.json').read_text())['version']
 extension = json.loads((root / 'browser-extension/manifest.json').read_text())['version']
-output = root.parent / f'Sala-8-bit-{version}-teste'
+output = root.parent / f'Sala-8-bit-Testes-{version}'
 output.mkdir(exist_ok=True)
-installer = root / f'desktop/src-tauri/target/release/bundle/nsis/Sala 8-bit_{version}_x64-setup.exe'
+installer = root / f'desktop/src-tauri/target/release/bundle/nsis/Sala 8-bit Testes_{version}_x64-setup.exe'
 if not installer.is_file():
     raise SystemExit('Compile the matching Windows installer first.')
 shutil.copy2(installer, output / installer.name)
@@ -35,11 +35,11 @@ archive(output / 'fontes-e-migracoes.zip', ((root / f, f) for f in selected))
 
 Extensão {extension}. ChatGPT e Gemini no Opera GX tiveram início e conclusão entregues com HTTP 200. Um teste simultâneo registrou duas execuções, 10 segundos de bônus e retorno a zero. Houve oscilação intermediária de detecção, descrita no documento de validação. Spotify também registrou reprodução e pausa no monitor local.
 
-Este pacote não foi publicado em produção. O instalador depende do site atualizado e das migrações Supabase 0007 e 0008 em ambiente de teste. Instalar apenas o executável com o site antigo não conclui a integração. Mantenha uma única instância do monitor; o monitor descartável atual ocupa a porta da extensão enquanto estiver aberto.
+Este pacote não foi publicado em produção. O instalador Sala 8-bit Testes usa configuração separada da edição original. O site e as oito migrações estão preparados no projeto Supabase de testes. Endereço do escritório: https://sala-8-bit-3kj7-git-correcoes-app-teste-ai-masters7.vercel.app . Entre com e-mail e código dentro do aplicativo. Mantenha uma única edição do monitor aberta: ambas usam a porta local 43187. O monitor descartável foi encerrado.
 
 Arquivos: instalador Windows, extensão para carregar sem compactação após extrair, conectores opcionais e fontes completas com migrações. O pacote não contém configurações pessoais dos conectores. Os conectores deste computador já foram instalados anteriormente com autorização; não é necessário reinstalá-los para este teste.
 
-Consulte docs/VALIDACAO-LOCAL-0.5.3.md nas fontes para evidências e pendências. A animação do personagem, música no navegador e demais serviços ainda precisam de validação real. A descrição anterior em docs/ATIVIDADE-IA-0.5.2.md é histórica; o documento 0.5.3 registra os resultados posteriores.
+O pareamento remoto real, os indicadores de IA e áudio e a animação de fone foram observados na prévia. O usuário confirmou que o indicador desliga ao pausar. Áudio pode incluir jogos e vídeos. Os demais serviços de IA não têm validação universal. Consulte docs/VALIDACAO-LOCAL-0.5.3.md nas fontes para evidências e pendências. A descrição em docs/ATIVIDADE-IA-0.5.2.md é histórica.
 ''', encoding='utf-8')
 checks = []
 for file in sorted(output.iterdir()):
