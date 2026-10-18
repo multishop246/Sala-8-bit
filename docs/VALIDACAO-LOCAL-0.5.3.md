@@ -137,3 +137,11 @@ O usuário confirmou wwm como o jogo Where Winds Meet; permaneceu na categoria p
 ## Diagnóstico separado das fontes após conclusão do Claude
 
 O exemplo activity-check usa o detector nativo real e os conectores, sem abrir porta de navegador nem alterar pareamento. Durante a execução desta tarefa, registrou native_agents=0 em todas as amostras observadas; hook_agents passou de 0 para 1. Isso demonstra que o contador agregado IA 1 podia corresponder ao próprio Codex executando a investigação, não ao Claude ainda trabalhando. As inferências anteriores baseadas somente no total devem ser lidas com essa correção: não ficou comprovado que o Claude era a fonte daquele total. O repouso nativo foi observado na edição 0.5.4; não atribuir a queda exclusivamente ao novo filtro, pois restaurar a janela também atualizou a árvore acessível. O teste não comprova todos os modos minimizados ou várias conversas nativas em paralelo.
+
+## Claude de desktop — ciclo completo confirmado em 18/10/2026
+
+Um diagnóstico contínuo de três minutos separou native_agents de hook_agents e incluiu a idade da última amostra nativa válida. As amostras 2–4 registraram native_agents=0, as 5–10 registraram 1 e as 11–14 voltaram a 0. A idade das amostras ficou entre zero e três segundos, afastando a interpretação de zero por ausência de resultado. hook_agents permaneceu 1 durante essa sequência, correspondente à tarefa Codex concorrente. O usuário confirmou que enviou o pedido e a resposta terminou. Assim, foi observado o ciclo nativo 0 → 1 → 0 do Claude com a janela restaurada. Não se trata de teste do Claude Code nem de garantia para janela minimizada.
+
+A prévia mostrou Claude IA 2 · 1,5× durante a sobreposição entre Claude e Codex. O diagnóstico temporário e seu processo auxiliar foram encerrados; o aplicativo de testes permaneceu aberto. A captura visual foi salva fora do repositório, sem conteúdo das conversas. O método de idade da amostra é exclusivo de compilação debug e não altera o detector de produção.
+
+O workflow 39174367837 do commit a0b80b3e7b5a064f191b17f7500651062e15a2c1 concluiu com Success: web em 28 segundos e Windows em 4 minutos e 56 segundos, gerando o artefato Sala-8-bit-Windows-teste. A produção permanece sem publicação dessas alterações.

@@ -38,4 +38,8 @@ impl Probe {
         self.0.lock().unwrap().as_ref().filter(|(at, _)| at.elapsed() < Duration::from_secs(12))
             .map(|(_, value)| value.clone()).unwrap_or_default()
     }
+    #[cfg(debug_assertions)]
+    pub fn sample_age_seconds(&self) -> Option<u64> {
+        self.0.lock().unwrap().as_ref().map(|(at, _)| at.elapsed().as_secs())
+    }
 }

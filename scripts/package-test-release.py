@@ -39,7 +39,7 @@ Este pacote não foi publicado em produção. O instalador Sala 8-bit Testes usa
 
 Arquivos: instalador Windows, extensão para carregar sem compactação após extrair, conectores opcionais e fontes completas com migrações. O pacote não contém configurações pessoais dos conectores. Os conectores deste computador já foram instalados anteriormente com autorização; não é necessário reinstalá-los para este teste.
 
-O pareamento remoto real, os indicadores de IA e áudio e a animação de fone foram observados na prévia. O usuário confirmou que o indicador desliga ao pausar. Áudio pode incluir jogos e vídeos. Os demais serviços de IA não têm validação universal. Consulte docs/VALIDACAO-LOCAL-0.5.3.md nas fontes para evidências e pendências. A descrição em docs/ATIVIDADE-IA-0.5.2.md é histórica.
+O pareamento remoto real, os indicadores de IA e áudio e a animação de fone foram observados na prévia. O usuário confirmou que o indicador desliga ao pausar. Claude de desktop com janela restaurada completou o ciclo nativo 0 → 1 → 0 com amostras válidas, separado do Codex concorrente; a prévia mostrou duas execuções e 1,5×. AI Studio e Flow tiveram início e conclusão entregues com HTTP 200 no Opera GX. Claude Code, outros navegadores e todos os modos minimizados não têm validação universal. Áudio pode incluir jogos e vídeos. Consulte docs/VALIDACAO-LOCAL-0.5.3.md nas fontes para evidências e pendências. A descrição em docs/ATIVIDADE-IA-0.5.2.md é histórica.
 ''', encoding='utf-8')
 checks = []
 for file in sorted(output.iterdir()):
