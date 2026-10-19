@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Default, Serialize)]
-pub struct Live { pub app: String, pub cat: String, pub idle: bool, pub agents: u32, pub music: bool, pub estado: String, pub conectado: bool, pub erro: Option<String>, pub pendentes: usize }
+pub struct Live { pub app: String, pub cat: String, pub idle: bool, pub agents: u32, pub music: bool, pub estado: String, pub conectado: bool, pub erro: Option<String>, pub pendentes: usize,
+    pub native_agents: u32, pub browser_agents: u32, pub hook_agents: u32, pub native_sample_age: Option<u64> }
 
 #[derive(Debug, Clone, Serialize)]
 struct MinuteOut { m: String, app: String, cat: &'static str, agents: u32, music: bool, productive_weight: f64, base_weight: f64, ia_fraction: f64 }
@@ -88,13 +89,16 @@ pub fn spawn(state: State) {
                 let (app, title) = match active_win_pos_rs::get_active_window() { Ok(w) => (if w.app_name.is_empty() { w.process_path.to_string_lossy().to_string() } else { w.app_name }, w.title), Err(_) => ("—".into(), String::new()) };
                 let observed = activity.current();
                 let music = media.playing();
-                let agents = (observed.agents + browser_activity.agents() + crate::hook_activity::agents()).min(20);
+                let browser_agents = browser_activity.agents();
+                let hook_agents = crate::hook_activity::agents();
+                let agents = (observed.agents + browser_agents + hook_agents).min(20);
                 let m = classify(&app, &title, idle, agents, &cfg);
                 *bucket.entry((m.app.clone(), m.cat)).or_insert(0) += 1;
                 music_m |= music; agents_m = agents_m.max(agents);
                 execution.sample(m.cat, agents);
                 let mut s = state.lock().unwrap();
-                s.live.app = m.app; s.live.cat = m.cat.into(); s.live.idle = m.cat == "idle" || m.cat == "ia"; s.live.agents = agents; s.live.music = music;
+                s.live.app = m.app; s.live.cat = m.cat.into(); s.live.idle = m.cat == "idle"; s.live.agents = agents; s.live.music = music;
+                s.live.native_agents=observed.agents; s.live.browser_agents=browser_agents; s.live.hook_agents=hook_agents; s.live.native_sample_age=activity.sample_age_seconds();
             }
             // virou o minuto: fecha com o que apareceu mais vezes
             let now_min = chrono::Utc::now().format("%Y-%m-%dT%H:%M:00Z").to_string();

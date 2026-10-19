@@ -1,5 +1,6 @@
 // Relatório do dia em PDF.
 import type { BoardSnapshot, CatalogItem, DayApp, DaySummary, Member, TimeLogRow, Workspace } from '../lib/types';
+import { reportApp, completedStage } from './labels';
 
 export interface ReportInput {
   ws: Workspace; me: Member; day: string; summary: DaySummary | undefined; timeLog: TimeLogRow[];
@@ -55,7 +56,7 @@ export async function buildReport(i: ReportInput): Promise<Blob> {
     line(`Produtivo: ${fmtD(s.produtivo_min)}${s.bonus_ia_min ? ` (inclui +${fmtD(s.bonus_ia_min)} do multiplicador de IA)` : ''} · Referência criativa: ${fmtD(s.ref_min)} · Comunicação: ${fmtD(s.com_min)} · Distração: ${fmtD(s.dis_min)} · Ocioso: ${fmtD(s.ocioso_min)} · Com IA rodando: ${fmtD(s.ia_min)}`, 10);
     if (den) line(`Aproveitamento: ${Math.min(100, Math.round(base / den * 100))}%`, 10, true);
     const NAMES: Record<string, string> = { prod: 'produtivo', ref: 'referência', com: 'comunicação', dis: 'distração', idle: 'ocioso', ia: 'IA', meet: 'reunião', gestor: 'pausa do gestor', pausa: 'pausa' };
-    for (const a of (i.apps || []).slice(0, 12)) line(`• ${a.app} — ${fmtD(a.minutes)} (${NAMES[a.category] || a.category})`, 10);
+    for (const a of (i.apps || []).map(reportApp).filter((a): a is DayApp => a !== null).slice(0, 12)) line(`• ${a.app} — ${fmtD(a.minutes)} (${NAMES[a.category] || a.category})`, 10);
     gap(3);
   }
   // tarefas trabalhadas
@@ -74,7 +75,7 @@ export async function buildReport(i: ReportInput): Promise<Blob> {
   if (!evs.length) line('Nenhuma entrega hoje.', 10, false, [107, 115, 144]);
   for (const e of evs) {
     const t = i.board.tasks.find(x => x.id === e.task_id);
-    line(`• ${new Date(e.created_at).toTimeString().slice(0, 5)} · ${t?.title || 'Tarefa'} — ${e.kind === 'etapa' ? 'etapa concluída' : 'tarefa concluída'}`, 10);
+    line(`• ${new Date(e.created_at).toTimeString().slice(0, 5)} · ${t?.title || 'Tarefa'} — ${completedStage(e)}`, 10);
   }
   gap(3);
   // ajuda e conversas

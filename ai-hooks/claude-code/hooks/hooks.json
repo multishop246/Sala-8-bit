@@ -88,6 +88,17 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -NonInteractive -File \"${CLAUDE_PLUGIN_ROOT}/hook.ps1\" -Source claude-code",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "matcher": "idle_prompt|agent_needs_input|agent_completed|permission_prompt|elicitation_dialog",

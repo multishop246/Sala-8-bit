@@ -7,6 +7,6 @@
   "permissions": [
     "core:default",
     "allow-agent-info", "allow-set-office-url", "allow-change-office", "allow-agent-pair",
-    "allow-agent-unpair", "allow-choose-folder", "allow-save-report"
+    "allow-agent-unpair", "allow-choose-folder", "allow-save-report", "allow-open-integrations", "allow-focus-lunch-reminder"
   ]
 }

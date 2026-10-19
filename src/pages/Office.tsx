@@ -16,6 +16,8 @@ import { MuralTab } from '../glory/MuralTab';
 import { InstagramDialog, MyDeskDialog, ReportDialog, SabadoDialog, nextSaturday } from './OfficeDialogs';
 import { isOpen } from '../board/logic';
 import { TITLES } from '../game/themes';
+import { LunchReminder } from './LunchReminder';
+import { AIConnections } from '../components/AIConnections';
 
 const CAPTURE = /capta[çc]|grava[çc][aã]o d|gravar|filmag|ensaio|making of|bastidores|sess[aã]o de fotos|fotografar/i;
 
@@ -69,6 +71,8 @@ export function Office() {
 
   return (
     <>
+      <LunchReminder />
+      <AIConnections />
       {L.callsToMe.length > 0 && <div className="alerts" style={{ marginBottom: 14 }}>
         {L.callsToMe.map(c => { const f = members.find(m => m.user_id === c.from_user); return (
           <div key={c.id} className="alert" role="alert"><span><b>{f?.display_name || 'Um colega'}</b> chamou sua atenção</span><button className="cta sm" onClick={() => attention(c.from_user)}>Responder</button></div>); })}

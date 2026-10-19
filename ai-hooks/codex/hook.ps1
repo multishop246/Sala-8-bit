@@ -7,8 +7,9 @@ try {
   $session = [string]$inputEvent.session_id
   if (-not $session -or $session.Length -gt 256) { exit 0 }
   $eventName = [string]$inputEvent.hook_event_name
-  $running = $eventName -in @('UserPromptSubmit','PreToolUse','PostToolUse')
-  if (-not $running -and $eventName -notin @('Stop','StopFailure','Interrupt','SessionEnd','PermissionRequest','SessionStart','Notification')) { exit 0 }
+  $running = $eventName -in @('UserPromptSubmit','PreToolUse','PostToolUse','PostToolUseFailure')
+  if ($eventName -eq 'PostToolUseFailure' -and $inputEvent.is_interrupt) { $running = $false }
+  if (-not $running -and $eventName -notin @('Stop','StopFailure','Interrupt','SessionEnd','PermissionRequest','SessionStart','Notification','PostToolUseFailure')) { exit 0 }
   if ($eventName -eq 'Notification' -and [string]$inputEvent.notification_type -notin @('idle_prompt','agent_needs_input','agent_completed','permission_prompt','elicitation_dialog')) { exit 0 }
   # Asking the user a question is not execution. Read tool identity only.
   if ($eventName -eq 'PreToolUse' -and [string]$inputEvent.tool_name -match '(?i)(AskUserQuestion|request_user_input)$') { $running = $false }

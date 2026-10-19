@@ -11,7 +11,19 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run test:db
+      - run: node scripts/test-workflow.mjs
+      - run: node scripts/test-upgrade-060.mjs
+      - run: npm run build
   build:
+    needs: verify
     strategy:
       fail-fast: false
       matrix:
@@ -44,10 +56,11 @@ jobs:
           tagName: app-v__VERSION__
           releaseName: 'Sala 8-bit para computador v__VERSION__'
           releaseBody: |
-            Instaladores do app de computador do Sala 8-bit.
-            • Windows: baixe o arquivo terminado em -setup.exe
-            • macOS: baixe o .dmg (Apple Silicon e Intel)
-            Os instaladores não são assinados: veja em docs/APP-COMPUTADOR.md como abrir na primeira vez.
+            Windows: baixe o arquivo terminado em -setup.exe. Ele inclui os componentes de IA e a tela Conexões de IA, sem downloads separados nem Python.
+            Chrome, Edge e Opera GX exigem uma ativação da extensão por perfil; os arquivos já acompanham o EXE. O Codex exige a revisão de confiança dos conectores. Essas confirmações não são substituídas pelo instalador.
+            Inclui correção de IA/ociosidade, aplicativos produtivos, etapas no relatório, função Video Maker e lembrete após uma hora de almoço.
+            Veja as instruções e limites em docs/VERSAO-0.6.0.md. macOS: use o .dmg (Intel e Apple Silicon); a instalação integrada de conectores é específica do Windows.
+            Os instaladores não são assinados: veja docs/APP-COMPUTADOR.md.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

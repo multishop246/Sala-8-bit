@@ -1,7 +1,7 @@
 name: Versão de testes do app
 on:
   push:
-    branches: [correcoes-app-teste]
+    branches: [correcoes-app-teste, main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +20,8 @@ jobs:
       - run: node scripts/test-browser-activity.mjs
       - run: node scripts/test-browser-delivery.mjs
       - run: node scripts/test-browser-popup.mjs
+      - run: node scripts/test-workflow.mjs
+      - run: node scripts/test-upgrade-060.mjs
       - run: npm run build
   windows:
     runs-on: windows-latest

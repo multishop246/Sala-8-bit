@@ -13,6 +13,8 @@ export const agentPair = (supabaseUrl: string, anonKey: string, token: string) =
 export const agentUnpair = () => call<void>('agent_unpair');
 export const chooseFolder = () => call<string | null>('choose_folder');
 export const changeOffice = () => call<void>('change_office');
+export const openIntegrations = () => call<void>('open_integrations');
+export const focusLunchReminder = () => inApp() ? call<void>('focus_lunch_reminder') : Promise.resolve();
 export async function saveReportInApp(filename: string, blob: Blob) {
   const bytes = Array.from(new Uint8Array(await blob.arrayBuffer()));
   return call<string>('save_report', { filename, bytes });

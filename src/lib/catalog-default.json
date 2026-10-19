@@ -27,7 +27,7 @@
    ]
   },
   {
-   "nome": "Editor de Vídeo",
+   "nome": "Video Maker",
    "desc": "Reels, YouTube, motion",
    "apps": [
     "Premiere Pro",
@@ -73,7 +73,7 @@
   {
    "nome": "Vídeo",
    "funcoes": [
-    "Editor de Vídeo"
+    "Video Maker"
    ],
    "est": 180,
    "fases": true,

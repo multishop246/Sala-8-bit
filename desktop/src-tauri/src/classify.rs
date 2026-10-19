@@ -45,6 +45,14 @@ pub fn is_browser(app: &str) -> bool {
     BROWSERS.iter().any(|b| a == *b || a.starts_with(&format!("{b} ")))
 }
 
+pub fn is_work_utility(app: &str) -> bool {
+    matches!(norm(&display_name(app)).as_str(),
+        "notepad" | "bloco de notas" | "windows notepad" | "notepad++" |
+        "calculator" | "calculatorapp" | "calculadora" | "calc" |
+        "capcut" | "windows explorer" | "explorer" | "file explorer" |
+        "explorador de arquivos" | "windows shell experience host" | "shellexperiencehost")
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Minute { pub app: String, pub cat: &'static str, pub music_hint: bool }
 
@@ -62,7 +70,7 @@ pub fn classify(app: &str, title: &str, idle_secs: u64, agents: u32, cfg: &Confi
         else if has_any(title, &cfg.sites_referencia) { "ref" }
         else { "prod" }
     } else if norm(app).contains("sala 8-bit") { "com" }
-    else if matches!(norm(&display_name(app)).as_str(), "notepad" | "bloco de notas" | "windows notepad" | "notepad++") { "prod" }
+    else if is_work_utility(app) { "prod" }
     else if has_any(app, &cfg.apps_ia) || has_any(app, &cfg.apps_trabalho) { "prod" }
     else if has_any(app, &cfg.apps_comunicacao) { "com" }
     else { "dis" };
@@ -72,6 +80,13 @@ pub fn classify(app: &str, title: &str, idle_secs: u64, agents: u32, cfg: &Confi
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn windows_work_tools_are_productive_without_custom_settings() {
+        for app in ["Windows Shell Experience Host", "Calculator.exe", "CapCut.exe", "Windows Explorer", "explorer.exe"] {
+            assert_eq!(classify(app,"",0,0,&Config::default()).cat,"prod", "{app}");
+        }
+        assert_eq!(classify("ChatGPT.exe","",600,1,&Config::default()).cat,"ia");
+        assert_eq!(classify("ChatGPT.exe","",600,0,&Config::default()).cat,"idle");
+    }
     fn cfg() -> Config {
         Config {
             apps_trabalho: vec!["Figma".into(), "Photoshop".into(), "Premiere Pro".into()],

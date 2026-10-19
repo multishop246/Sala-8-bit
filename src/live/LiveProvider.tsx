@@ -187,7 +187,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         lunchDone: mine.some(p => p.kind === 'almoco'),
         meeting: status?.meeting_id ? meetingsOpen.find(x => x.id === status.meeting_id) || null : null,
         agentOn, app: agentOn ? status?.app_now || null : null, appCat: agentOn ? status?.app_cat || null : null,
-        music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0, idle: agentOn && !!status?.idle
+        music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0, idle: agentOn && !!status?.idle && !(status?.agents && status.agents > 0)
       };
     });
     const gestor = ready.find(m => m.kind === 'gestor');

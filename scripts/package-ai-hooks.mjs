@@ -11,10 +11,11 @@ for (const source of ['codex','claude-code']) {
   const command=`powershell.exe -NoProfile -NonInteractive -File "${variable}/hook.ps1" -Source ${source}`;
   const events=['SessionStart','UserPromptSubmit','PreToolUse','PostToolUse','PermissionRequest','Stop','SessionEnd'];
   events.push(source==='codex'?'Interrupt':'StopFailure');
+  if (source==='claude-code') events.push('PostToolUseFailure');
   const hooks=Object.fromEntries(events.map(event=>[event,[{hooks:[{type:'command',command,timeout:source==='codex' && ['Interrupt','SessionEnd'].includes(event)?3:5}]}]]));
   if (source==='claude-code') hooks.Notification=[{matcher:'idle_prompt|agent_needs_input|agent_completed|permission_prompt|elicitation_dialog',hooks:[{type:'command',command,timeout:5}]}];
   fs.writeFileSync(path.join(dir,'hooks','hooks.json'),JSON.stringify({hooks},null,2)+'\n');
-  const manifest={name:'sala-8-bit-activity',version:'0.5.2',description:'Indicador local de tarefas em execução, sem conteúdo das conversas'};
+  const manifest={name:'sala-8-bit-activity',version:'0.6.0',description:'Indicador local de tarefas em execução, sem conteúdo das conversas'};
   if (source==='codex') {
     manifest.extensions={'com.openai':{hooks:'./hooks/hooks.json'}};
     fs.writeFileSync(path.join(dir,'plugin.json'),JSON.stringify(manifest,null,2)+'\n');

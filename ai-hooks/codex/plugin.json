@@ -1,6 +1,6 @@
 {
   "name": "sala-8-bit-activity",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Indicador local de tarefas em execução, sem conteúdo das conversas",
   "extensions": {
     "com.openai": {

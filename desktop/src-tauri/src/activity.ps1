@@ -38,7 +38,7 @@ while ($true) {
           # A genuinely minimized window remains eligible for background work.
           if (-not $minimized -and ($control.Current.IsOffscreen -or $control.Current.BoundingRectangle.IsEmpty -or $control.Current.BoundingRectangle.Width -le 0 -or $control.Current.BoundingRectangle.Height -le 0)) { continue }
           # Only explicit execution controls; an open process or CPU activity is not proof.
-          if ($control.Current.Name -match '(?i)^(stop generating|stop response|stop streaming|stop generation|parar de gerar|parar resposta|interromper resposta|interromper geracao|interromper geração|cancel task|cancelar tarefa|stop task|parar tarefa)$') {
+          if ($control.Current.Name -match '(?i)^(stop|parar|stop generating|stop response|stop streaming|stop generation|parar de gerar|parar resposta|interromper resposta|interromper geracao|interromper geração|cancel task|cancelar tarefa|stop task|parar tarefa)$') {
             # Window fallback only. Per-conversation totals require an adapter
             # for the chat application's execution lifecycle.
             $agents++; break

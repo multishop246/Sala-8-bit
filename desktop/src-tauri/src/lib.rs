@@ -7,6 +7,7 @@ mod activity;
 mod media;
 mod browser_activity;
 mod hook_activity;
+mod integrations;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -48,6 +49,14 @@ fn open_main(app: &AppHandle, st: &St) -> tauri::Result<()> {
 }
 
 // ---------------------------------------------------------------- comandos chamados pelo site
+#[tauri::command]
+fn open_integrations(app: AppHandle) -> Result<(), String> { integrations::open(&app) }
+
+#[tauri::command]
+fn focus_lunch_reminder(app: AppHandle) -> Result<(), String> {
+    if let Some(w)=app.get_webview_window("main") { w.show().map_err(|e|e.to_string())?; w.set_focus().map_err(|e|e.to_string())?; }
+    Ok(())
+}
 #[derive(serde::Serialize)]
 struct Info { versao: String, plataforma: String, aparelho: String, pareado: bool, escritorio: Option<String>, pasta: Option<String>, agora: Live }
 
@@ -130,11 +139,13 @@ pub fn run() {
             let st: St = Arc::new(Mutex::new(Shared { saved, cfg: None, cfg_at: None, live: Live::default(), paused: false }));
             app.manage(st.clone());
             tracker::spawn(st.clone());
+            let _ = integrations::prepare();
             // ícone perto do relógio: o app continua medindo com a janela fechada
             let open = MenuItem::with_id(app, "abrir", "Abrir o escritório", true, None::<&str>)?;
             let change = MenuItem::with_id(app, "trocar", "Trocar de escritório", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "sair", "Sair do Sala 8-bit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &change, &quit])?;
+            let connections = MenuItem::with_id(app, "conexoes", "Conexões de IA", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &connections, &change, &quit])?;
             let st_t = st.clone();
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().cloned().expect("ícone"))
@@ -143,18 +154,26 @@ pub fn run() {
                 .on_menu_event(move |app, e| match e.id.as_ref() {
                     "abrir" => { let _ = open_main(app, &st_t); }
                     "trocar" => { let s: State<St> = app.state(); let _ = change_office(app.clone(), s); }
+                    "conexoes" => { let _ = integrations::open(app); }
                     "sair" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
             open_main(app.handle(), &st)?;
+            let first_launch = cfg!(target_os="windows") && !st.lock().unwrap().saved.integrations_seen;
+            if first_launch {
+                if integrations::open(app.handle()).is_ok() {
+                    st.lock().unwrap().saved.integrations_seen=true;
+                    persist(app.handle(),&st);
+                }
+            }
             Ok(())
         })
         .on_window_event(|w, e| {
             // fechar a janela só esconde: a medição continua até "Sair" no ícone
             if let tauri::WindowEvent::CloseRequested { api, .. } = e { api.prevent_close(); let _ = w.hide(); }
         })
-        .invoke_handler(tauri::generate_handler![agent_info, set_office_url, change_office, agent_pair, agent_unpair, choose_folder, save_report])
+        .invoke_handler(tauri::generate_handler![agent_info, set_office_url, change_office, agent_pair, agent_unpair, choose_folder, save_report, open_integrations, focus_lunch_reminder, integrations::integration_status, integrations::install_ai_hooks, integrations::show_extension_folder])
         .run(tauri::generate_context!())
         .expect("erro ao abrir o Sala 8-bit");
 }

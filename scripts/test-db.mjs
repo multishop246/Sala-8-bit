@@ -238,6 +238,8 @@ await t('0.3 · concluir etapa volta para A fazer vinculada', async () => {
   await as(U2, () => q(`select complete_task($1)`, [tv.id]));
   const x = await tk(tv.id); if (x.col !== 'afazer' || x.etapa !== 'captacao' || x.linked_to !== U2 || x.owner) throw new Error(JSON.stringify(x));
   const d = (await q(`select minutes, etapa from task_durations where task_id=$1`, [tv.id])).rows[0]; if (!d || d.etapa !== 'roteiro' || d.minutes < 29) throw new Error(JSON.stringify(d));
+  const completed=(await q(`select completed_stage from task_events where task_id=$1 and kind='etapa'`,[tv.id])).rows[0];
+  if(completed?.completed_stage!=='roteiro') throw new Error('Histórico deve registrar a etapa concluída, não a próxima.');
 });
 await t('0.3 · vínculo não restringe: outro pega a captação', async () => { await as(U3, () => q(`select start_task($1)`, [tv.id])); if ((await tk(tv.id)).owner !== U3) throw new Error('não pegou'); });
 await t('0.3 · passa pelas 4 etapas até Feito', async () => {

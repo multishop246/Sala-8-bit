@@ -128,7 +128,7 @@ export interface Task {
   due_date: string; due_time: string | null; est_min: number; spent_sec: number; phase_spent_sec: number; running_since: string | null;
   created_at: string; started_at: string | null; done_at: string | null; updated_at: string;
 }
-export interface TaskEvent { id: string; task_id: string; workspace_id: string; actor: string | null; kind: string; text: string; created_at: string }
+export interface TaskEvent { id: string; task_id: string; workspace_id: string; actor: string | null; kind: string; text: string; created_at: string; completed_stage?: Etapa | null }
 export interface Contest { id: string; task_id: string; workspace_id: string; by_user: string; text: string; status: 'aberta' | 'aprovada' | 'recusada'; created_at: string; closed_at: string | null }
 export interface Vote { contest_id: string; workspace_id: string; user_id: string; vote: boolean }
 export interface Transfer { id: string; task_id: string; workspace_id: string; from_user: string; to_user: string; status: 'pendente' | 'aceita' | 'recusada' | 'cancelada'; justification: string | null; created_at: string }

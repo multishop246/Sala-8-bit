@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "integrations",
+  "description": "Configuração dos conectores somente na janela local incluída no EXE.",
+  "windows": ["integrations"],
+  "permissions": ["core:default", "allow-integration-status", "allow-install-ai-hooks", "allow-show-extension-folder"]
+}

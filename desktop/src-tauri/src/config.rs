@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Saved {
+    #[serde(default)]
+    pub integrations_seen: bool,
     /// endereço do escritório (o site da empresa)
     pub office_url: Option<String>,
     /// dados para o app mandar os minutos (preenchidos automaticamente pelo site)
