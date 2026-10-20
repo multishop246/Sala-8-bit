@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Live { pub app: String, pub cat: String, pub idle: bool, pub agents: u32, pub music: bool, pub estado: String, pub conectado: bool, pub erro: Option<String>, pub pendentes: usize,
-    pub native_agents: u32, pub browser_agents: u32, pub hook_agents: u32, pub native_sample_age: Option<u64> }
+    pub native_agents: u32, pub browser_agents: u32, pub hook_agents: u32, pub native_sample_age: Option<u64>,
+    pub browser_receiver_ready: bool, pub browser_last_signal_at_ms: Option<u64> }
 
 #[derive(Debug, Clone, Serialize)]
 struct MinuteOut { m: String, app: String, cat: &'static str, agents: u32, music: bool, productive_weight: f64, base_weight: f64, ia_fraction: f64 }
@@ -59,7 +60,19 @@ pub fn spawn(state: State) {
     std::thread::spawn(move || {
         let activity = crate::activity::Probe::spawn();
         let media = crate::media::MediaProbe::spawn();
-        let browser_activity = crate::browser_activity::BrowserProbe::spawn();
+        let receiver_state=state.clone();
+        let browser_activity = crate::browser_activity::BrowserProbe::spawn(move |count,ready| {
+            let mut app=receiver_state.lock().unwrap();
+            app.live.browser_receiver_ready=ready;
+            if let Some(count)=count {
+                app.live.browser_last_signal_at_ms=std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH).ok().map(|d|d.as_millis() as u64);
+                if !app.paused {
+                    app.live.browser_agents=count;
+                    app.live.agents=(app.live.native_agents+count+app.live.hook_agents).min(20);
+                }
+            }
+        });
         let mut bucket: HashMap<(String, &'static str), u32> = HashMap::new();
         let (mut music_m, mut agents_m) = (false, 0u32);
         let mut execution = ExecutionTime::default();

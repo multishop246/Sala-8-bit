@@ -38,18 +38,22 @@ impl Registry {
 }
 pub struct BrowserProbe(Arc<Mutex<Registry>>);
 impl BrowserProbe {
-    pub fn spawn() -> Self {
+    pub fn spawn(on_state: impl Fn(Option<u32>, bool) + Send + 'static) -> Self {
         let state = Arc::new(Mutex::new(Registry::default()));
         let shared = Arc::clone(&state);
         std::thread::spawn(move || {
             let listener=match std::net::TcpListener::bind("127.0.0.1:43187") {
-                Ok(listener)=>listener,
-                Err(error)=> { eprintln!("Sala 8-bit: local extension receiver unavailable: {error}"); return; }
+                Ok(listener)=> { on_state(None,true); listener },
+                Err(error)=> { on_state(None,false); eprintln!("Sala 8-bit: local extension receiver unavailable: {error}"); return; }
             };
             for mut stream in listener.incoming().flatten() {
                 let _ = stream.set_read_timeout(Some(Duration::from_millis(750)));
                 let _ = stream.set_write_timeout(Some(Duration::from_millis(750)));
                 let status = handle(&mut stream,&shared);
+                if status==200 {
+                    let count=shared.lock().unwrap().count(Instant::now());
+                    on_state(Some(count),true);
+                }
                 let text = if status==204 { "No Content" } else if status==200 { "OK" } else { "Forbidden" };
                 let response = format!("HTTP/1.1 {status} {text}\r\nAccess-Control-Allow-Origin: {ORIGIN}\r\nVary: Origin\r\nAccess-Control-Allow-Methods: POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, X-Sala-Activity\r\nAccess-Control-Allow-Private-Network: true\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                 let _ = stream.write_all(response.as_bytes());

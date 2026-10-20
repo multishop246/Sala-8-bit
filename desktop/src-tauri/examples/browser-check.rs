@@ -2,7 +2,7 @@
 #[path = "../src/browser_activity.rs"] mod browser_activity;
 fn main() {
     std::env::set_var("SALA_ACTIVITY_DIAGNOSTIC","1");
-    let probe=browser_activity::BrowserProbe::spawn();
+    let probe=browser_activity::BrowserProbe::spawn(|_,_|{});
     println!("Receptor temporario: 127.0.0.1:43187 (10 minutos)");
     let mut previous=None;
     for _ in 0..300 {

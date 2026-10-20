@@ -106,6 +106,8 @@ pub fn integration_status(window:WebviewWindow,st:tauri::State<crate::St>)->Resu
     Ok(json!({"version":env!("CARGO_PKG_VERSION"),"paired":state.saved.token.is_some(),"connected":state.live.conectado,
         "native":state.live.native_agents,"browser":state.live.browser_agents,"hooks":state.live.hook_agents,
         "native_sample_age":state.live.native_sample_age,"total":state.live.agents,"paused":state.paused,
+        "browser_receiver_ready":state.live.browser_receiver_ready,
+        "browser_last_signal_at_ms":state.live.browser_last_signal_at_ms,
         "extension_folder":root()?.join("browser").to_string_lossy()}))
 }
 

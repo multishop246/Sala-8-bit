@@ -3201,7 +3201,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "sala-8-bit"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "active-win-pos-rs",
  "chrono",
