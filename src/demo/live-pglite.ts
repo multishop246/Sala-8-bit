@@ -22,7 +22,7 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
     transfers: await Q<Transfer>(`select * from task_transfers where workspace_id = $1`, [wsId]),
     help: await Q<HelpReq>(`select * from task_help where workspace_id = $1`, [wsId]),
     durations: await Q<Duration>(`select user_id, area_id, type_id, etapa, minutes, done_at from task_durations where workspace_id = $1`, [wsId]),
-    messages: await Q<Message>(`select * from messages where workspace_id = $1 order by created_at`, [wsId])
+    messages: await Q<Message>(`select * from messages where workspace_id = $1 and (from_user = $2 or to_user = $2) order by created_at`, [wsId, userId])
   };
   const saturdays = await Q<SaturdayShift>(`select * from saturday_shifts where workspace_id = $1 and day >= $2`, [wsId, day]);
   const instagram = (await Q<InstagramStats>(`select * from instagram_stats where workspace_id = $1`, [wsId]))[0] || null;

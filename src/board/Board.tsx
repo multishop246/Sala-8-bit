@@ -6,6 +6,7 @@ import type { Col, Task } from '../lib/types';
 import { ETAPAS, catOf, etapaIdx, etapaName, fmtD, fmtDue, overdue, spentMin, teamAvg, teamLabel, todayISO, type Cat } from './logic';
 import { NewTaskDialog } from './NewTaskDialog';
 import { TaskDialog } from './TaskDialog';
+import { deleteScript, listOldFinishedScripts } from '../lib/task-scripts';
 
 const COLS: [Col, string, string][] = [['afazer', 'A fazer', '#ef5a6f'], ['fazendo', 'Fazendo', '#f2c94c'], ['feito', 'Feito hoje', '#5ad18a']];
 
@@ -17,6 +18,7 @@ export function Board({ openTask, setOpenTask, onChat, showAll = false }: { open
   const [lineF, setLineF] = useState('');
   const [personF, setPersonF] = useState('');
   const [creating, setCreating] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const team = members.filter(m => m.kind === 'membro' && m.consent_at);
   const isMembro = me.kind === 'membro';
   const b = L.board;
@@ -51,11 +53,23 @@ export function Board({ openTask, setOpenTask, onChat, showAll = false }: { open
     } else toast(t.col === 'afazer' ? 'Inicie a tarefa antes de concluir.' : 'Tarefas concluídas não voltam.');
   };
   const drag = useDrag(move);
+  const cleanScripts = async () => {
+    setCleaning(true);
+    try {
+      const old = await listOldFinishedScripts(ws.id);
+      if (!old.length) { toast('Nenhum roteiro antigo para apagar'); return; }
+      if (!window.confirm(`Apagar ${old.length} roteiro(s) em PDF de demandas concluídas antes deste mês?`)) return;
+      for (const task of old) await deleteScript(task);
+      L.refresh(); toast(`${old.length} roteiro(s) apagado(s)`);
+    } catch (e) { toast((e as Error).message); }
+    finally { setCleaning(false); }
+  };
 
   return (
     <div>
       <div className="boardbar">
         {isMembro && <button className="cta" onClick={() => setCreating(true)}>+ Criar tarefa</button>}
+        {showAll && me.is_admin && <button className="ghost sm" disabled={cleaning} onClick={cleanScripts}>{cleaning ? 'Apagando PDFs…' : 'Apagar roteiros de meses concluídos'}</button>}
         <label className="lbl" htmlFor="bfl">{ws.settings.rotulo_linha || 'Linha'}</label>
         <select id="bfl" value={lineF} onChange={e => setLineF(e.target.value)}><option value="">Todas</option>{cat.linhas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
         <label className="lbl" htmlFor="bfp">Colaborador</label>
@@ -69,7 +83,7 @@ export function Board({ openTask, setOpenTask, onChat, showAll = false }: { open
           return (
             <div key={k} className="col" data-col={k}>
               <h3><span className="dot" style={{ background: c }} />{showAll && k === 'feito' ? 'Feito' : n} · {ts.length}</h3>
-              {ts.map(t => <Card key={t.id} t={t} cat={cat} onOpen={() => { if (!drag.justDragged()) setOpenTask(t.id); }} onDown={e => isMembro && drag.down(e, t.id)} />)}
+              {ts.map(t => <Card key={t.id} t={t} cat={cat} showStats={showAll} onOpen={() => { if (!drag.justDragged()) setOpenTask(t.id); }} onDown={e => isMembro && drag.down(e, t.id)} />)}
               {!ts.length && <span className="small muted">Vazio</span>}
             </div>);
         })}
@@ -80,7 +94,7 @@ export function Board({ openTask, setOpenTask, onChat, showAll = false }: { open
   );
 }
 
-export function Card({ t, cat, onOpen, onDown, compact }: { t: Task; cat: Cat; onOpen: () => void; onDown?: (e: RPointerEvent) => void; compact?: boolean }) {
+export function Card({ t, cat, onOpen, onDown, compact, showStats = false }: { t: Task; cat: Cat; onOpen: () => void; onDown?: (e: RPointerEvent) => void; compact?: boolean; showStats?: boolean }) {
   const { me, members } = useWs();
   const L = useLive();
   const b = L.board;
@@ -116,8 +130,8 @@ export function Card({ t, cat, onOpen, onDown, compact }: { t: Task; cat: Cat; o
       {pi >= 0 && <div className="phase">{ETAPAS.map(([k, n], i) => <i key={k} className={done || pi > i ? 'ok' : pi === i ? 'cur' : ''} title={n} />)}<em>{done ? 'Concluído' : `${etapaName(t.etapa)} · ${pi + 1} de 4`}</em></div>}
       {!compact && <div className="cfacts">
         <div><span>Entrega</span><b className={late ? 'late' : ''}>{done ? 'Entregue ' + (t.done_at ? new Date(t.done_at).toTimeString().slice(0, 5) : '') : fmtDue(t)}</b></div>
-        <div><span>Tempo</span><b>{fmtD(spentMin(t, L.now))}{t.running_since ? <span className="rec" title="Cronômetro rodando"> ●</span> : null}</b></div>
-        <div><span>Média equipe</span><b>{fmtD(teamAvg(b, cat, t))}</b></div>
+        {showStats && <><div><span>Tempo</span><b>{fmtD(spentMin(t, L.now))}{t.running_since ? <span className="rec" title="Cronômetro rodando"> ●</span> : null}</b></div>
+        <div><span>Média equipe</span><b>{fmtD(teamAvg(b, cat, t))}</b></div></>}
       </div>}
       <div className="cfoot"><span>{who}</span><span>por {L.nameOf(t.creator)}</span></div>
       {badges.length > 0 && <div className="badges">{badges.map(([x, c]) => <span key={x} className={'bdg ' + c}>{x}</span>)}</div>}

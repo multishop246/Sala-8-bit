@@ -122,7 +122,7 @@ export function Office() {
         </section>
       </div>
 
-      {boardPopup && <Modal title="Quadro de tarefas" wide onClose={() => { if (openTask) setOpenTask(null); else setBoardPopup(false); }}>
+      {boardPopup && <Modal title="Quadro de tarefas" board onClose={() => { if (openTask) setOpenTask(null); else setBoardPopup(false); }}>
         <Board showAll openTask={openTask} setOpenTask={setOpenTask} onChat={(uid, task) => { setBoardPopup(false); openChat(uid, task); }} />
       </Modal>}
       {dlg?.kind === 'copa' && <Modal title="Copa" onClose={() => setDlg(null)}>

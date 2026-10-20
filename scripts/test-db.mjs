@@ -234,14 +234,26 @@ await t('0.3 · iniciar e o relógio corre só com a pessoa trabalhando', async 
   x = await tk(tv.id); if (!x.running_since) throw new Error('não voltou');
 });
 await t('0.3 · só quem executa conclui', () => as(U3, () => expectErr(() => q(`select complete_task($1)`, [tv.id]), /executando/)));
+await t('0.6 · ajuda aceita na etapa de vídeo', async () => {
+  await as(U2, () => q(`select request_help($1,$2,'Apoiar o roteiro')`, [tv.id, [U3]]));
+  const h = (await q(`select id from task_help where task_id=$1 and to_user=$2 and status='pendente'`, [tv.id, U3])).rows[0];
+  await as(U3, () => q(`select answer_help($1,true)`, [h.id]));
+});
 await t('0.3 · concluir etapa volta para A fazer vinculada', async () => {
   await as(U2, () => q(`select complete_task($1)`, [tv.id]));
   const x = await tk(tv.id); if (x.col !== 'afazer' || x.etapa !== 'captacao' || x.linked_to !== U2 || x.owner) throw new Error(JSON.stringify(x));
   const d = (await q(`select minutes, etapa from task_durations where task_id=$1`, [tv.id])).rows[0]; if (!d || d.etapa !== 'roteiro' || d.minutes < 29) throw new Error(JSON.stringify(d));
   const completed=(await q(`select completed_stage from task_events where task_id=$1 and kind='etapa'`,[tv.id])).rows[0];
   if(completed?.completed_stage!=='roteiro') throw new Error('Histórico deve registrar a etapa concluída, não a próxima.');
+  const activeHelp=(await q(`select count(*)::int n from task_help where task_id=$1 and status in ('pendente','aceita')`,[tv.id])).rows[0].n;
+  if(activeHelp) throw new Error('Ajuda continuou após mudar de etapa');
 });
 await t('0.3 · vínculo não restringe: outro pega a captação', async () => { await as(U3, () => q(`select start_task($1)`, [tv.id])); if ((await tk(tv.id)).owner !== U3) throw new Error('não pegou'); });
+await t('0.6 · ajuda pode ser solicitada de novo na próxima etapa', async () => {
+  await as(U3, () => q(`select request_help($1,$2,'Apoiar a captação')`, [tv.id, [U2]]));
+  const h=(await q(`select status from task_help where task_id=$1 and to_user=$2 order by created_at desc limit 1`,[tv.id,U2])).rows[0];
+  if(h?.status!=='pendente') throw new Error('Nova ajuda não foi criada');
+});
 await t('0.3 · passa pelas 4 etapas até Feito', async () => {
   await as(U3, () => q(`select complete_task($1)`, [tv.id]));
   await as(U1, () => q(`select start_task($1)`, [tv.id])); await as(U1, () => q(`select complete_task($1)`, [tv.id]));
@@ -285,8 +297,14 @@ await t('0.3 · chat: mensagem precisa de demanda e sinaliza fora do assunto', a
   const m2 = await as(U2, async () => (await q(`select * from send_message($1,$2,$3,'Viu o jogo de ontem?')`, [w4.id, U1, td.id])).rows[0]);
   if (m1.flagged || !m2.flagged) throw new Error('filtro');
   const seen3 = await as(U3, async () => (await q(`select count(*)::int n from messages`)).rows[0].n); if (seen3) throw new Error('terceiro leu');
+  const seenGestor = await as(UG, async () => (await q(`select count(*)::int n from messages`)).rows[0].n); if (seenGestor) throw new Error('gestor leu conversa alheia');
   await as(U1, () => q(`select mark_read($1,$2)`, [w4.id, U2]));
   if ((await q(`select count(*)::int n from messages where read_at is null`)).rows[0].n) throw new Error('não marcou lido');
+  await as(U3, () => q(`select send_message($1,$2,$3,'Sobre a gravação')`, [w4.id, U1, tv.id]));
+  const mine2 = await as(U2, async () => (await q(`select count(*)::int n from messages`)).rows[0].n);
+  const mine1 = await as(U1, async () => (await q(`select count(*)::int n from messages`)).rows[0].n);
+  if (mine2 !== 2 || mine1 !== 3) throw new Error(`isolamento falhou: ${mine2}/${mine1}`);
+  await as(UG, () => expectErr(() => q(`insert into messages(workspace_id,from_user,to_user,task_id,text) values($1,$2,$3,$4,'Mensagem falsa')`, [w4.id, U2, U1, td.id])));
 });
 await t('0.3 · responder no chat apaga a placa ATENÇÃO', async () => {
   await as(U2, () => q(`select call_attention($1,$2)`, [w4.id, U1]));

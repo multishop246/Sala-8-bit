@@ -11,7 +11,7 @@ function check<T>(r: { data: T | null; error: { message: string } | null }): T {
 }
 const daysAgo = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
 
-async function loadBoard(wsId: string): Promise<BoardSnapshot> {
+async function loadBoard(wsId: string, userId: string): Promise<BoardSnapshot> {
   const [tasks, events, contests, transfers, help, durations, messages] = await Promise.all([
     supabase.from('tasks').select('*').eq('workspace_id', wsId).or(`col.neq.feito,done_at.gte.${daysAgo(30)}`).order('created_at'),
     supabase.from('task_events').select('*').eq('workspace_id', wsId).gte('created_at', daysAgo(30)).order('created_at').limit(3000),
@@ -19,7 +19,7 @@ async function loadBoard(wsId: string): Promise<BoardSnapshot> {
     supabase.from('task_transfers').select('*').eq('workspace_id', wsId).gte('created_at', daysAgo(30)),
     supabase.from('task_help').select('*').eq('workspace_id', wsId).gte('created_at', daysAgo(30)),
     supabase.from('task_durations').select('user_id,area_id,type_id,etapa,minutes,done_at').eq('workspace_id', wsId).gte('done_at', daysAgo(120)),
-    supabase.from('messages').select('*').eq('workspace_id', wsId).gte('created_at', daysAgo(30)).order('created_at').limit(3000)
+    supabase.from('messages').select('*').eq('workspace_id', wsId).or(`from_user.eq.${userId},to_user.eq.${userId}`).gte('created_at', daysAgo(30)).order('created_at').limit(3000)
   ]);
   const cs = check(contests) as Contest[];
   const votes = cs.length ? check(await supabase.from('contest_votes').select('*').in('contest_id', cs.map(c => c.id))) as Vote[] : [];
@@ -35,7 +35,7 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
     supabase.from('pauses').select('*').eq('workspace_id', wsId).eq('day', day),
     supabase.from('meetings').select('*').eq('workspace_id', wsId).is('ended_at', null),
     supabase.from('attention_calls').select('*').eq('workspace_id', wsId).is('seen_at', null).or(`from_user.eq.${userId},to_user.eq.${userId}`),
-    loadBoard(wsId),
+    loadBoard(wsId, userId),
     supabase.from('saturday_shifts').select('*').eq('workspace_id', wsId).gte('day', day),
     supabase.from('instagram_stats').select('*').eq('workspace_id', wsId).maybeSingle()
   ]);
@@ -46,11 +46,13 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
   return { statuses: check(statuses) as Status[], pauses: check(pauses) as Pause[], meetings: ms, meetingMembers: mm, calls: check(calls) as AttentionCall[], board, saturdays: check(saturdays) as SaturdayShift[], instagram: check(instagram) as InstagramStats | null };
 }
 
-const TABLES = ['statuses', 'pauses', 'meetings', 'meeting_members', 'attention_calls', 'tasks', 'task_contests', 'contest_votes', 'task_transfers', 'task_help', 'messages', 'saturday_shifts', 'instagram_stats'];
+const TABLES = ['statuses', 'pauses', 'meetings', 'meeting_members', 'attention_calls', 'tasks', 'task_contests', 'contest_votes', 'task_transfers', 'task_help', 'saturday_shifts', 'instagram_stats'];
 export function subscribeLive(wsId: string, me: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void) {
   const filter = `workspace_id=eq.${wsId}`;
   const ch = supabase.channel('sala:' + wsId, { config: { presence: { key: me.userId } } });
   for (const table of TABLES) ch.on('postgres_changes', { event: '*', schema: 'public', table, filter }, onChange);
+  // A mensagem é privada: atualize as conversas por leitura autorizada, sem publicar seu conteúdo no canal da equipe.
+  const messageTimer = window.setInterval(onChange, 5000);
   ch.on('presence', { event: 'sync' }, () => {
     const st = ch.presenceState<{ device: Device }>();
     const map: OnlineMap = {};
@@ -58,7 +60,7 @@ export function subscribeLive(wsId: string, me: { userId: string; device: Device
     onOnline(map);
   });
   ch.subscribe(async s => { if (s === 'SUBSCRIBED') { await ch.track({ device: me.device }); onChange(); } });
-  return () => { supabase.removeChannel(ch); };
+  return () => { window.clearInterval(messageTimer); supabase.removeChannel(ch); };
 }
 
 const rpc = async <T = unknown>(fn: string, args: Record<string, unknown>) => check(await supabase.rpc(fn, args)) as T;

@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { Modal } from '../components/Modal';
 import { useLive } from '../live/LiveProvider';
 import { useWs } from '../lib/workspace';
+import { useToast } from '../components/Toast';
+import { isDemo } from '../lib/supabase';
+import { uploadScript } from '../lib/task-scripts';
 import {
   addDays, areaMembers, capCheck, catOf, dow, estimate, fmtD, fmtDay, hasPhases, minToHHMM, nextFree, slotsFor, teamLabel, todayISO
 } from './logic';
@@ -11,6 +14,7 @@ const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'jul
 export function NewTaskDialog({ onClose, preset }: { onClose: () => void; preset?: { dirTo?: string } }) {
   const { ws, members, catalog } = useWs();
   const L = useLive();
+  const toast = useToast();
   const cat = useMemo(() => catOf(catalog), [catalog]);
   const team = members.filter(m => m.kind === 'membro' && m.consent_at);
   const areas = cat.areas.filter(a => a.active);
@@ -24,6 +28,7 @@ export function NewTaskDialog({ onClose, preset }: { onClose: () => void; preset
   const [due, setDue] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [script, setScript] = useState<File | null>(null);
   const tipos = cat.tipos.filter(t => t.parent_id === area && t.active);
   const grupos = [...new Set(tipos.map(t => t.grupo || 'Geral'))];
   const who = areaMembers(cat, area, team);
@@ -40,8 +45,13 @@ export function NewTaskDialog({ onClose, preset }: { onClose: () => void; preset
 
   const submit = async () => {
     setBusy(true);
-    const ok = await L.act.createTask({ title: title.trim(), description: desc.trim(), line_id: line, area_id: area, type_id: type || null, dir_to: dirTo || null, due_date: due!, due_time: time, est_min: est.min });
-    if (ok) onClose(); else setBusy(false);
+    const task = await L.act.createTask({ title: title.trim(), description: desc.trim(), line_id: line, area_id: area, type_id: type || null, dir_to: dirTo || null, due_date: due!, due_time: time, est_min: est.min });
+    if (!task) { setBusy(false); return; }
+    if (script) {
+      try { await uploadScript(task, script); L.refresh(); toast('Roteiro anexado à tarefa'); }
+      catch (e) { toast(`Tarefa criada. Abra-a para tentar anexar o PDF: ${(e as Error).message}`); }
+    }
+    onClose();
   };
 
   return (
@@ -51,7 +61,7 @@ export function NewTaskDialog({ onClose, preset }: { onClose: () => void; preset
         <div className="field"><label htmlFor="nl">{ws.settings.rotulo_linha || 'Linha'}</label>
           <select id="nl" value={line} onChange={e => setLine(e.target.value)}><option value="">Escolha…</option>{linhas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
         <div className="field"><label htmlFor="na">Área</label>
-          <select id="na" value={area} onChange={e => { setArea(e.target.value); setType(''); setDirTo(''); setDue(null); setTime(null); }}>{areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+          <select id="na" value={area} onChange={e => { setArea(e.target.value); setType(''); setDirTo(''); setDue(null); setTime(null); setScript(null); }}>{areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
       </div>
       {tipos.length > 0 && <div className="field"><label htmlFor="ny">Tipo</label>
         <select id="ny" value={type} onChange={e => setType(e.target.value)}><option value="">Escolha…</option>
@@ -64,6 +74,9 @@ export function NewTaskDialog({ onClose, preset }: { onClose: () => void; preset
           {who.map(m => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
         </select></div>
       {etapa && <p className="small muted">Vídeo começa no <b>Roteiro</b> e passa por Captação, Edição e Finalização. A cada etapa concluída a tarefa volta para A fazer, vinculada a quem fez.</p>}
+      {etapa && !isDemo && <div className="field"><label htmlFor="ns">Roteiro em PDF (opcional, até 10 MB)</label>
+        <input id="ns" type="file" accept="application/pdf,.pdf" onChange={e => setScript(e.target.files?.[0] || null)} />
+        <span className="small muted">O arquivo é privado. Após concluir o mês, o administrador poderá apagá-lo para liberar espaço.</span></div>}
       <div className="cols2">
         <div className="field"><span className="lbl">Data de entrega</span>
           <Calendar value={due} onPick={d => { setDue(d); setTime(null); }} isDisabled={d => d < today || dow(d) === 0 || !check(d).fits} label={d => { const c = check(d); return c.closed ? 'sem expediente' : !c.fits ? 'lotado' : ''; }} /></div>

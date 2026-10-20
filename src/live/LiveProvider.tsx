@@ -6,7 +6,7 @@ import { useWs } from '../lib/workspace';
 import * as desktop from '../lib/desktop';
 import { assignTitles, monthStart, titleThemeOf, type GloryCat } from '../glory/glory';
 import { THEME, themesNow } from '../game/themes';
-import type { Avatar, InstagramStats, SaturdayShift, AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status } from '../lib/types';
+import type { Avatar, InstagramStats, SaturdayShift, AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status, Task } from '../lib/types';
 
 const EMPTY_BOARD: BoardSnapshot = { tasks: [], events: [], contests: [], votes: [], transfers: [], help: [], durations: [], messages: [] };
 
@@ -36,6 +36,7 @@ export interface PersonView {
 }
 
 interface LiveCtx {
+  refresh: () => void;
   ready: boolean;
   now: number;
   views: PersonView[];
@@ -56,7 +57,7 @@ interface LiveCtx {
   unread: Record<string, number>;
   nameOf: (id: string | null) => string;
   act: {
-    createTask: (t: NewTask) => Promise<boolean>;
+    createTask: (t: NewTask) => Promise<Task | null>;
     setSaturday: (userId: string, day: string, works: boolean) => Promise<boolean>;
     setInstagram: (handle: string, followers: number) => Promise<boolean>;
     startTask: (id: string) => Promise<boolean>;
@@ -208,6 +209,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     board.messages.forEach(m => { if (m.to_user === me.user_id && !m.read_at) unread[m.from_user] = (unread[m.from_user] || 0) + 1; });
     const nameOf = (id: string | null) => (id ? members.find(m => m.user_id === id)?.display_name || 'ex-membro' : '—');
     return {
+      refresh: reload,
       ready: !!snap, now, views, board, unread, nameOf, titles, look,
       saturdays: snap?.saturdays || [], instagram: snap?.instagram || null,
       view: (id: string) => views.find(v => v.member.user_id === id),
@@ -217,7 +219,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       gestorName: gestor?.display_name || null,
       inLunchWindow: nowMin >= toMin(al.de) && nowMin < toMin(al.ate),
       act: {
-        createTask: t => wrap(() => live.createTask(ws.id, t), 'Tarefa criada')(),
+        createTask: async t => { try { const task = await live.createTask(ws.id, t); reload(); toast('Tarefa criada'); return task; } catch (e) { toast((e as Error).message); return null; } },
         setSaturday: (u, d, w) => wrap(() => live.setSaturday(ws.id, u, d, w), w ? 'Sábado de trabalho marcado' : 'Folga marcada')(),
         setInstagram: (h, f) => wrap(() => live.setInstagram(ws.id, h, f), 'Instagram atualizado')(),
         startTask: id => wrap(() => live.startTask(id), 'Tarefa iniciada')(),

@@ -123,6 +123,7 @@ export type Col = 'afazer' | 'fazendo' | 'feito';
 export type Etapa = 'roteiro' | 'captacao' | 'edicao' | 'finalizacao';
 export interface Task {
   id: string; workspace_id: string; title: string; description: string;
+  script_path?: string | null;
   line_id: string | null; area_id: string | null; type_id: string | null;
   col: Col; etapa: Etapa | null; owner: string | null; dir_to: string | null; linked_to: string | null; creator: string;
   due_date: string; due_time: string | null; est_min: number; spent_sec: number; phase_spent_sec: number; running_since: string | null;

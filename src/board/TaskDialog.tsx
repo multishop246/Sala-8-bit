@@ -3,6 +3,9 @@ import { Modal } from '../components/Modal';
 import { Avatar } from '../game/Avatar';
 import { useLive } from '../live/LiveProvider';
 import { useWs } from '../lib/workspace';
+import { useToast } from '../components/Toast';
+import { isDemo } from '../lib/supabase';
+import { scriptUrl, uploadScript } from '../lib/task-scripts';
 import { ETAPAS, catOf, etapaIdx, etapaName, fmtD, fmtDue, overdue, spentMin, teamAvg, teamLabel } from './logic';
 
 type Mode = null | 'contest' | 'transfer' | 'help' | { refuse: 'transfer' | 'help'; id: string };
@@ -10,6 +13,7 @@ type Mode = null | 'contest' | 'transfer' | 'help' | { refuse: 'transfer' | 'hel
 export function TaskDialog({ id, onClose, onChat }: { id: string; onClose: () => void; onChat?: (userId: string, taskId: string) => void }) {
   const { me, members, catalog } = useWs();
   const L = useLive();
+  const toast = useToast();
   const cat = useMemo(() => catOf(catalog), [catalog]);
   const [mode, setMode] = useState<Mode>(null);
   const [text, setText] = useState('');
@@ -35,8 +39,22 @@ export function TaskDialog({ id, onClose, onChat }: { id: string; onClose: () =>
   const line = t.line_id ? cat.byId.get(t.line_id) : undefined;
   const active = L.view(me.user_id)?.status?.active_task_id === t.id;
   const canDelete = (t.creator === me.user_id || me.is_admin) && t.col !== 'fazendo';
+  const openScript = async () => {
+    if (!t.script_path) return;
+    const tab = window.open('', '_blank');
+    try { const url = await scriptUrl(t.script_path); if (tab) tab.location.href = url; else window.location.href = url; }
+    catch (e) { tab?.close(); toast((e as Error).message); }
+  };
+  const attachScript = async (file?: File) => {
+    if (!file) return;
+    setBusy(true);
+    try { await uploadScript(t, file); L.refresh(); toast('Roteiro anexado'); }
+    catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
   const run = async (fn: () => Promise<boolean>, close = false) => { setBusy(true); const ok = await fn(); setBusy(false); if (ok) { setMode(null); setText(''); setTo([]); if (close) onClose(); } };
   const pi = etapaIdx(t.etapa);
+  const canWriteScript = pi >= 0 && (t.creator === me.user_id || t.owner === me.user_id || me.is_admin) && !isDemo;
   const next = pi >= 0 && pi < 3 ? etapaName(ETAPAS[pi + 1][0]) : null;
   const talkTo = t.owner && t.owner !== me.user_id ? t.owner : t.creator !== me.user_id ? t.creator : null;
 
@@ -58,6 +76,12 @@ export function TaskDialog({ id, onClose, onChat }: { id: string; onClose: () =>
       {pi >= 0 && <div className="phase big">{ETAPAS.map(([k, n], i) => <span key={k} className={t.col === 'feito' || pi > i ? 'ok' : pi === i ? 'cur' : ''}>{n}</span>)}</div>}
       <div className="facts">{facts.map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}</div>
       {t.description && <p className="desc">{t.description}</p>}
+      {pi >= 0 && <div className="note"><b>Roteiro</b><div className="btns">
+        {t.script_path ? <button className="ghost sm" onClick={openScript}>Abrir PDF</button> : <span className="small muted">Nenhum PDF anexado.</span>}
+        {canWriteScript && <label className="ghost sm" style={{ cursor: busy ? 'wait' : 'pointer' }}>{t.script_path ? 'Substituir PDF' : 'Anexar PDF'}
+          <input type="file" accept="application/pdf,.pdf" disabled={busy} style={{ display: 'none' }} onChange={e => { void attachScript(e.target.files?.[0]); e.target.value = ''; }} />
+        </label>}
+      </div></div>}
 
       {/* pedidos esperando você */}
       {transfer && transfer.to_user === me.user_id && <div className="note action">
