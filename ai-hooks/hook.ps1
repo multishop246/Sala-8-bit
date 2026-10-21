@@ -37,12 +37,29 @@ try {
   try { $digest = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes("$Source`:$session")))).Replace('-','').ToLowerInvariant() } finally { $sha.Dispose() }
   $epoch = [DateTime]::SpecifyKind([DateTime]'1970-01-01', [DateTimeKind]::Utc)
   $state = @{source=$Source; conversation=$digest; running=$running; pid=$owner.Id; started=[long][Math]::Floor(($owner.StartTime.ToUniversalTime()-$epoch).TotalSeconds); at=[long][Math]::Floor(([DateTime]::UtcNow-$epoch).TotalSeconds)}
-  $folder = Join-Path $env:LOCALAPPDATA 'Sala8bit\activity'
-  [IO.Directory]::CreateDirectory($folder) | Out-Null
-  $target = Join-Path $folder "$Source-$digest.json"
-  $temp = "$target.$PID.tmp"
-  [IO.File]::WriteAllText($temp, ($state | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding($false)))
-  Move-Item -LiteralPath $temp -Destination $target -Force
+  $json = $state | ConvertTo-Json -Compress
+  try {
+    $folder = Join-Path $env:LOCALAPPDATA 'Sala8bit\activity'
+    [IO.Directory]::CreateDirectory($folder) | Out-Null
+    $target = Join-Path $folder "$Source-$digest.json"
+    $temp = "$target.$PID.tmp"
+    [IO.File]::WriteAllText($temp, $json, (New-Object Text.UTF8Encoding($false)))
+    Move-Item -LiteralPath $temp -Destination $target -Force
+  } catch { }
+  # Also hand off the same minimal state over loopback. Some Windows app
+  # sandboxes expose different views of the identical local folder.
+  try {
+    $client = New-Object Net.Sockets.TcpClient
+    $pending = $client.BeginConnect('127.0.0.1', 43188, $null, $null)
+    if (-not $pending.AsyncWaitHandle.WaitOne(500)) { $client.Close(); exit 0 }
+    $client.EndConnect($pending)
+    $body = [Text.Encoding]::UTF8.GetBytes($json)
+    $head = [Text.Encoding]::ASCII.GetBytes("POST /hook HTTP/1.1`r`nHost: 127.0.0.1:43188`r`nContent-Type: application/json`r`nX-Sala-Hook: 1`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
+    $stream = $client.GetStream()
+    $stream.Write($head, 0, $head.Length)
+    $stream.Write($body, 0, $body.Length)
+    $client.Close()
+  } catch { if ($client) { $client.Close() } }
 } catch { }
 # Never block the AI, even when Sala 8-bit is closed or an adapter is unsupported.
 exit 0

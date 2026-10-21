@@ -109,6 +109,8 @@ pub fn integration_status(window:WebviewWindow,st:tauri::State<crate::St>)->Resu
         "codex_signal":crate::hook_activity::codex_status(),
         "browser_receiver_ready":state.live.browser_receiver_ready,
         "browser_last_signal_at_ms":state.live.browser_last_signal_at_ms,
+        "hook_receiver_ready":state.live.hook_receiver_ready,
+        "hook_last_signal_at_ms":state.live.hook_last_signal_at_ms,
         "extension_folder":root()?.join("browser").to_string_lossy()}))
 }
 

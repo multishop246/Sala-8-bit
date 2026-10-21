@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Live { pub app: String, pub cat: String, pub idle: bool, pub agents: u32, pub music: bool, pub estado: String, pub conectado: bool, pub erro: Option<String>, pub pendentes: usize,
     pub native_agents: u32, pub browser_agents: u32, pub hook_agents: u32, pub native_sample_age: Option<u64>,
-    pub browser_receiver_ready: bool, pub browser_last_signal_at_ms: Option<u64> }
+    pub browser_receiver_ready: bool, pub browser_last_signal_at_ms: Option<u64>,
+    pub hook_receiver_ready: bool, pub hook_last_signal_at_ms: Option<u64> }
 
 #[derive(Debug, Clone, Serialize)]
 struct MinuteOut { m: String, app: String, cat: &'static str, agents: u32, music: bool, productive_weight: f64, base_weight: f64, ia_fraction: f64 }
@@ -73,6 +74,19 @@ pub fn spawn(state: State) {
                 }
             }
         });
+        let hook_state=state.clone();
+        let hook_activity=crate::hook_activity::HookProbe::spawn(move |count,ready| {
+            let mut app=hook_state.lock().unwrap();
+            app.live.hook_receiver_ready=ready;
+            if let Some(count)=count {
+                app.live.hook_last_signal_at_ms=std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH).ok().map(|d|d.as_millis() as u64);
+                if !app.paused {
+                    app.live.hook_agents=count;
+                    app.live.agents=(app.live.native_agents+app.live.browser_agents+count).min(20);
+                }
+            }
+        });
         let mut bucket: HashMap<(String, &'static str), u32> = HashMap::new();
         let (mut music_m, mut agents_m) = (false, 0u32);
         let mut execution = ExecutionTime::default();
@@ -103,7 +117,7 @@ pub fn spawn(state: State) {
                 let observed = activity.current();
                 let music = media.playing();
                 let browser_agents = browser_activity.agents();
-                let hook_agents = crate::hook_activity::agents();
+                let hook_agents = hook_activity.agents();
                 let agents = (observed.agents + browser_agents + hook_agents).min(20);
                 let m = classify(&app, &title, idle, agents, &cfg);
                 *bucket.entry((m.app.clone(), m.cat)).or_insert(0) += 1;
