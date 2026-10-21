@@ -63,17 +63,24 @@ pub fn agents() -> u32 {
 }
 
 pub fn codex_status() -> serde_json::Value {
-    let Some(local)=std::env::var_os("LOCALAPPDATA") else { return serde_json::json!({"received":false}); };
+    let Some(local)=std::env::var_os("LOCALAPPDATA") else { return serde_json::json!({"received":false,"error":"LOCALAPPDATA indisponível"}); };
     let folder=std::path::PathBuf::from(local).join("Sala8bit").join("activity");
-    let Ok(files)=std::fs::read_dir(folder) else { return serde_json::json!({"received":false}); };
+    let files=match std::fs::read_dir(&folder) {
+        Ok(files)=>files,
+        Err(e)=>return serde_json::json!({"received":false,"folder":folder,"error":e.to_string()}),
+    };
     let now=SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let mut seen=0;
+    let mut valid=0;
     let latest=files.flatten().take(512).filter_map(|entry| {
+        seen+=1;
         if entry.path().extension().and_then(|x|x.to_str())!=Some("json") { return None; }
         if !entry.metadata().map(|m|m.is_file() && m.len()<=2048).unwrap_or(false) { return None; }
         let signal=serde_json::from_slice::<Signal>(&std::fs::read(entry.path()).ok()?).ok()?;
+        valid+=1;
         (signal.source=="codex" && signal.at<=now+5).then_some(signal)
     }).max_by_key(|s|s.at);
-    let Some(signal)=latest else { return serde_json::json!({"received":false}); };
+    let Some(signal)=latest else { return serde_json::json!({"received":false,"folder":folder,"files_seen":seen,"valid_signals":valid,"now":now}); };
     let start=process_start(signal.pid);
     serde_json::json!({"received":true,"age_seconds":now.saturating_sub(signal.at),
         "running":signal.running,"process_verified":start==Some(signal.started),

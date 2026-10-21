@@ -1,7 +1,7 @@
 {
   "name": "sala-8-bit-desktop",
   "private": true,
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "App de computador do Sala 8-bit (Windows e macOS)",
   "scripts": {
     "tauri": "tauri",
