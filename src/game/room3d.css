@@ -1,0 +1,26 @@
+.office3d { overflow: hidden; border: 1px solid #ffffff18; border-radius: 18px; background: #1b1b2e; box-shadow: 0 18px 60px #0003; }
+.room3d-header { padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(110deg,#27233d,#1c2136); }
+.room3d-header > div { display: grid; gap: 2px; }
+.room3d-header .eyebrow { font-size: 9px; letter-spacing: .17em; color: #b0a3d0; }
+.room3d-header b { font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
+.room3d-header b span { font-size: 10px; background: #8270b1; color: #fff; border-radius: 5px; padding: 3px 5px; vertical-align: middle; margin-left: 5px; }
+.room3d-stage { position: relative; aspect-ratio: 1.5; min-height: 330px; background: radial-gradient(ellipse at 45% 35%, #eee3ed 0, #c3b8d8 47%, #969db7 100%); isolation: isolate; }
+.room3d-stage::before { content: ''; position: absolute; inset: 0; opacity: .17; pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'%3E%3Cg fill='%237268a1'%3E%3Cpath d='M0 0h120v300H0zm200 30h180v280H200zM440 0h150v270H440zM670 30h220v280H670zM990 0h190v350H990zM0 590h170v210H0zM240 610h160v190H240zM850 600h170v200H850zM1070 480h130v320h-130z'/%3E%3C/g%3E%3C/svg%3E") center/cover; filter: blur(3px); }
+.room3d-world, .room3d-labels { position: absolute; inset: 0; }
+.room3d-world canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: pan-y; }
+.room3d-labels { pointer-events: none; overflow: hidden; container-type: inline-size; }
+.room3d-labels button { position: absolute; transform: translate(-50%,-100%); pointer-events: auto; white-space: nowrap; font-family: var(--body); transition: background .15s; }
+.room3d-zone { border: 1px solid #ffffff25; border-radius: 7px; background: #252036ed; padding: 4px 8px; color: #fff; font-size: clamp(8px,.9cqi,12px); font-weight: 600; box-shadow: 0 4px 10px #19172a20; }
+.room3d-zone::first-letter { color: #ffe087; }
+.room3d-zone:hover { background: #4b3d75; }
+.room3d-person { background: #242237de; border: 1px solid #ffffff30; color: #fff; border-radius: 20px; padding: 3px 7px; font-size: clamp(7px,.85cqi,11px); box-shadow: 0 2px 6px #0002; }
+.room3d-person::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--status,#6db79a); margin-right: 4px; vertical-align: 1px; }
+.room3d-person.mine { background: #7254a5e6; border-color: #d2b8ff; }
+.room3d-person:hover { background: #5d4c82; }
+.room3d-footer { display: flex; gap: 8px 14px; flex-wrap: wrap; justify-content: space-between; padding: 12px 18px; font-size: 11px; color: #bdb7d0; background: #211f33; }
+.room3d-footer i { display: inline-block; width: 6px; height: 6px; background: #8acdb0; border-radius: 50%; margin-right: 7px; }
+.room3d-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #484059; background: #c8bed7; }
+.office3d.expanded { position: fixed; inset: 18px; z-index: 80; display: flex; flex-direction: column; background: #1c2136; }
+.office3d.expanded .room3d-stage { flex: 1; min-height: 0; aspect-ratio: auto; }
+@media (max-width: 650px) { .room3d-header { padding: 12px; } .room3d-header b { font-size: 17px; } .room3d-stage { min-height: 300px; } .room3d-zone { padding: 3px 5px; } .room3d-footer { padding: 10px 12px; font-size: 10px; } .room3d-footer > span:last-child:not(:first-child) { display:none; } .office3d.expanded { inset: 5px; } }
+@media (prefers-reduced-motion: reduce) { .room3d-labels button { transition: none; } }

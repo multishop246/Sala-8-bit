@@ -2,7 +2,7 @@
   "name": "sala-8-bit",
   "private": true,
   "version": "0.1.0",
-  "description": "Escritório virtual em pixel art para equipes de marketing. Código aberto e gratuito.",
+  "description": "Escritório virtual 3D para equipes de marketing. Código aberto e gratuito.",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "test:db": "node scripts/test-db.mjs"
+    "test:db": "node scripts/test-db.mjs",
+    "test:room": "node scripts/test-room.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.1.0",
@@ -20,12 +21,14 @@
     "jspdf": "^2.5.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.12",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^4.3.3",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",

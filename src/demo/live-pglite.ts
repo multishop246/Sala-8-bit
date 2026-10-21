@@ -2,6 +2,7 @@
 import type { DayApp, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, AttentionCall, BoardSnapshot, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask, OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote } from '../lib/types';
 import { DEMO_USER, asUser, rpc as rawRpc } from './pg';
 import { botTick } from './bots';
+import type { RoomPresence } from '../game/movement';
 
 const me = DEMO_USER.id;
 const Q = <T,>(sql: string, p: unknown[] = []) => asUser<T>(me, sql, p);
@@ -29,18 +30,20 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
   return { statuses, pauses, meetings, meetingMembers, calls, board, saturdays, instagram };
 }
 
-export function subscribeLive(wsId: string, my: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void) {
+export function subscribeLive(wsId: string, my: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void, bindScene?: (fn: (s: RoomPresence) => void) => void) {
+  let scene: RoomPresence | undefined;
   const online = async () => {
-    const map: OnlineMap = { [my.userId]: { device: my.device } };
+    const map: OnlineMap = { [my.userId]: { device: my.device, scene } };
     const rows = await Q<{ user_id: string; device: Device }>(`select user_id, device from statuses where workspace_id = $1 and user_id <> $2 and state <> 'fora'`, [wsId, my.userId]);
     rows.forEach(r => { map[r.user_id] = { device: r.device }; });
     onOnline(map);
   };
   const f = () => { onChange(); online(); };
+  bindScene?.(s => { scene = s; void online(); });
   window.addEventListener('sala8bit-live', f);
   const t = window.setInterval(() => { botTick(wsId).catch(() => {}); }, 5000);
   setTimeout(f, 0);
-  return () => { window.removeEventListener('sala8bit-live', f); window.clearInterval(t); };
+  return () => { bindScene?.(() => {}); window.removeEventListener('sala8bit-live', f); window.clearInterval(t); };
 }
 
 const rpc = async (fn: string, args: Record<string, unknown>) => { await rawRpc(me, fn, args); };

@@ -12,7 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'Sala 8-bit',
         short_name: 'Sala 8-bit',
-        description: 'Escritório virtual em pixel art para equipes de marketing',
+        description: 'Escritório virtual 3D para equipes de marketing',
         lang: 'pt-BR',
         theme_color: '#0c101d',
         background_color: '#0c101d',

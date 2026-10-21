@@ -19,8 +19,6 @@ import { TITLES } from '../game/themes';
 import { LunchReminder } from './LunchReminder';
 import { AIConnections } from '../components/AIConnections';
 
-const CAPTURE = /capta[çc]|grava[çc][aã]o d|gravar|filmag|ensaio|making of|bastidores|sess[aã]o de fotos|fotografar/i;
-
 type Dlg = { kind: 'copa' } | { kind: 'meet' } | { kind: 'person'; id: string } | { kind: 'end' } | { kind: 'sabado' } | { kind: 'instagram' } | { kind: 'mydesk' } | { kind: 'report'; ended: boolean } | null;
 type Tab = 'quadro' | 'chat' | 'painel' | 'mural';
 
@@ -99,7 +97,8 @@ export function Office() {
             live={{
               views: L.views, meetings: L.meetings, callsToMe: L.callsToMe, meId: me.user_id, now: L.now, gestorName: L.gestorName, look: L.look,
               taskTitle: uid => activeTask(uid)?.title || null,
-              capturing: uid => { const t = activeTask(uid); return !!t && (t.etapa === 'captacao' || (!t.etapa && CAPTURE.test(t.title))); },
+              capturing: uid => !!L.view(uid)?.capturing,
+              moveCharacter: L.moveCharacter,
               titles: rec.mural_gloria ? L.titles : {},
               wall: { notes, instagram: rec.instagram ? (L.ready ? (L.instagram?.followers ?? 0) : null) : null, sabadao: !!rec.sabadao, mural: !!rec.mural_gloria },
               sabado: ready.filter(m => m.kind === 'membro').map(m => ({ name: m.display_name || '', works: L.saturdays.find(x => x.user_id === m.user_id && x.day === sat)?.works ?? null })),

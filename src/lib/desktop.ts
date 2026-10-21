@@ -5,7 +5,7 @@ const tauri = () => (window as unknown as { __TAURI__?: { core?: { invoke?: Invo
 export const inApp = () => typeof window !== 'undefined' && !!tauri();
 const call = <T,>(cmd: string, args?: Record<string, unknown>) => { const f = tauri(); if (!f) return Promise.reject(new Error('Fora do app de computador')); return f<T>(cmd, args); };
 
-export interface AgentNow { app: string; cat: string; idle: boolean; agents: number; music: boolean; estado: string; conectado: boolean; erro: string | null; pendentes: number }
+export interface AgentNow { app: string; cat: string; idle: boolean; idle_seconds?: number; agents: number; music: boolean; estado: string; conectado: boolean; erro: string | null; pendentes: number }
 export interface AgentInfo { versao: string; plataforma: string; aparelho: string; pareado: boolean; escritorio: string | null; pasta: string | null; agora: AgentNow }
 
 export const agentInfo = () => call<AgentInfo>('agent_info');

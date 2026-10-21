@@ -12,6 +12,7 @@ pub struct Config {
     #[serde(default)] pub sites_email: Vec<String>,
     #[serde(default = "default_idle")] pub ociosidade_min: u64,
     #[serde(default)] pub pasta_relatorios: Option<String>,
+    #[serde(default)] pub capture_active: bool,
 }
 fn default_idle() -> u64 { 5 }
 
@@ -62,7 +63,7 @@ pub fn classify(app: &str, title: &str, idle_secs: u64, agents: u32, cfg: &Confi
     let shown = if browser { WEB.to_string() } else { display_name(app) };
     let music_hint = browser && MUSIC_TITLES.iter().any(|m| norm(title).contains(m));
     if idle_secs >= cfg.ociosidade_min.max(1) * 60 {
-        return Minute { app: shown, cat: if agents > 0 { "ia" } else { "idle" }, music_hint };
+        return Minute { app: shown, cat: if agents > 0 { "ia" } else if cfg.capture_active { "prod" } else { "idle" }, music_hint };
     }
     let cat = if browser {
         if has_any(title, &cfg.sites_email) { "com" }
@@ -115,6 +116,13 @@ mod tests {
         assert_eq!(classify("Figma", "", 400, 0, &cfg()).cat, "idle");
         assert_eq!(classify("Figma", "", 400, 2, &cfg()).cat, "ia");
         assert_eq!(classify("Figma", "", 200, 0, &cfg()).cat, "prod");
+    }
+    #[test] fn capture_does_not_require_keyboard_or_mouse() {
+        let mut c=cfg();c.capture_active=true;
+        assert_eq!(classify("Windows Explorer","",1800,0,&c).cat,"prod");
+        assert_eq!(classify("Windows Explorer","",1800,2,&c).cat,"ia");
+        c.capture_active=false;
+        assert_eq!(classify("Windows Explorer","",1800,0,&c).cat,"idle");
     }
     #[test] fn comunicacao_e_distracao() {
         assert_eq!(classify("Slack", "", 0, 0, &cfg()).cat, "com");

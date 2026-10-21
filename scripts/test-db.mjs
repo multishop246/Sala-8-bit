@@ -448,6 +448,26 @@ await t('0.5.2 · execução de cinco segundos não aplica bônus ao minuto inte
   const glory=(await as(V1,async()=>(await q(`select * from glory_scores($1,current_date)`,[w5.id])).rows)).find(x=>x.user_id===V2);
   if (glory.tarefa_min!==5 || glory.ia_min!==1) throw new Error('ranking ignorou frações: '+JSON.stringify(glory));
 });
+await t('0.7 · captação continua produtiva sem mouse; edição volta a medir ociosidade', async () => {
+  const task=(await q(`insert into tasks(workspace_id,title,creator,owner,due_date,col,etapa,running_since)
+    values($1,'Captação externa',$2,$2,current_date,'fazendo','captacao',now()-interval '10 minutes') returning id`,[w5.id,V2])).rows[0].id;
+  await db.exec(`select set_config('sala.bypass','on',false)`);
+  await q(`update statuses set state='trabalhando',active_task_id=$3 where workspace_id=$1 and user_id=$2`,[w5.id,V2,task]);
+  await db.exec(`select set_config('sala.bypass','off',false)`);
+  const send=async seconds=>(await asAnon(()=>q(`select agent_live($1,$2::jsonb) r`,[tok,JSON.stringify({app:'Windows Explorer',cat:'idle',idle:true,idle_seconds:seconds,agents:0})]))).rows[0].r;
+  const capture=await send(1800);
+  const during=(await q(`select idle,idle_seconds,app_cat from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  if(!capture.capturing || during.idle || during.app_cat!=='prod' || during.idle_seconds!==1800) throw new Error(JSON.stringify(during));
+  const recent=new Date(Date.now()-2*60000).toISOString(),old=new Date(Date.now()-20*60000).toISOString();
+  await asAnon(()=>q(`select agent_report($1,$2::jsonb)`,[tok,JSON.stringify([{m:recent,cat:'idle',productive_weight:0,base_weight:0},{m:old,cat:'idle',productive_weight:0,base_weight:0}])]));
+  const logs=(await q(`select category,productive_weight::float8 as weight from activity_minutes where workspace_id=$1 and user_id=$2 and minute in(date_trunc('minute',$3::timestamptz),date_trunc('minute',$4::timestamptz)) order by minute desc`,[w5.id,V2,recent,old])).rows;
+  if(logs[0].category!=='prod'||logs[0].weight!==1||logs[1].category!=='idle') throw new Error(JSON.stringify(logs));
+  await q(`update tasks set etapa='edicao' where id=$1`,[task]);
+  if((await send(300)).capturing) throw new Error('Edição ainda foi tratada como captação');
+  if(!(await q(`select idle from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0].idle) throw new Error('Edição deve medir ociosidade');
+  await send(299);
+  if((await q(`select idle from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0].idle) throw new Error('Ociosidade antecipada antes de cinco minutos');
+});
 await t('0.5 · depois de encerrar o expediente o app para de gravar', async () => {
   await as(V2, () => q(`select set_state($1,'encerrado',current_date)`, [w5.id]));
   const r = await asAnon(async () => (await q(`select agent_report($1, $2::jsonb) r`, [tok, JSON.stringify([{ m: new Date().toISOString(), app: 'Figma', cat: 'prod' }])])).rows[0].r);

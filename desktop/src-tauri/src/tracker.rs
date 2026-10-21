@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 pub struct Live { pub app: String, pub cat: String, pub idle: bool, pub agents: u32, pub music: bool, pub estado: String, pub conectado: bool, pub erro: Option<String>, pub pendentes: usize,
     pub native_agents: u32, pub browser_agents: u32, pub hook_agents: u32, pub native_sample_age: Option<u64>,
     pub browser_receiver_ready: bool, pub browser_last_signal_at_ms: Option<u64>,
-    pub hook_receiver_ready: bool, pub hook_last_signal_at_ms: Option<u64> }
+    pub hook_receiver_ready: bool, pub hook_last_signal_at_ms: Option<u64>, pub idle_seconds: u64 }
 
 #[derive(Debug, Clone, Serialize)]
 struct MinuteOut { m: String, app: String, cat: &'static str, agents: u32, music: bool, productive_weight: f64, base_weight: f64, ia_fraction: f64 }
@@ -90,6 +90,7 @@ pub fn spawn(state: State) {
         let mut bucket: HashMap<(String, &'static str), u32> = HashMap::new();
         let (mut music_m, mut agents_m) = (false, 0u32);
         let mut execution = ExecutionTime::default();
+        let mut capturing = false;
         let mut minute = chrono::Utc::now().format("%Y-%m-%dT%H:%M:00Z").to_string();
         let mut queue: Vec<MinuteOut> = Vec::new();
         let mut last_send = Instant::now() - Duration::from_secs(120);
@@ -109,7 +110,8 @@ pub fn spawn(state: State) {
                     Err(e) => { let mut s = state.lock().unwrap(); s.live.erro = Some(e); s.live.conectado = false; if s.cfg.is_none() { continue; } }
                 }
             }
-            let cfg = state.lock().unwrap().cfg.clone().unwrap_or_default();
+            let mut cfg = state.lock().unwrap().cfg.clone().unwrap_or_default();
+            cfg.capture_active=capturing;
             // amostra
             if !paused {
                 let idle = user_idle::UserIdle::get_time().map(|t| t.as_seconds()).unwrap_or(0);
@@ -124,7 +126,7 @@ pub fn spawn(state: State) {
                 music_m |= music; agents_m = agents_m.max(agents);
                 execution.sample(m.cat, agents);
                 let mut s = state.lock().unwrap();
-                s.live.app = m.app; s.live.cat = m.cat.into(); s.live.idle = m.cat == "idle"; s.live.agents = agents; s.live.music = music;
+                s.live.app = m.app; s.live.cat = m.cat.into(); s.live.idle = m.cat == "idle"; s.live.idle_seconds=idle; s.live.agents = agents; s.live.music = music;
                 s.live.native_agents=observed.agents; s.live.browser_agents=browser_agents; s.live.hook_agents=hook_agents; s.live.native_sample_age=activity.sample_age_seconds();
             }
             // virou o minuto: fecha com o que apareceu mais vezes
@@ -158,10 +160,11 @@ pub fn spawn(state: State) {
             // Send current indicators after historical data so a finished task
             // cannot be resurrected by last minute's maximum agent count.
             let current = state.lock().unwrap().live.clone();
-            match rpc(&base, &key, "agent_live", serde_json::json!({"p_token": token, "p_live": {"app": current.app, "cat": current.cat, "idle": current.idle, "agents": current.agents, "music": current.music}})) {
+            match rpc(&base, &key, "agent_live", serde_json::json!({"p_token": token, "p_live": {"app": current.app, "cat": current.cat, "idle": current.idle, "idle_seconds":current.idle_seconds.min(604800), "agents": current.agents, "music": current.music}})) {
                 Ok(v) => {
                     let mut s = state.lock().unwrap();
                     s.paused = v.get("estado").and_then(|x| x.as_str()) == Some("encerrado");
+                    capturing=v.get("capturing").and_then(|x|x.as_bool()).unwrap_or(false);
                     if s.paused { s.live.agents = 0; s.live.music = false; }
                 }
                 Err(e) => { state.lock().unwrap().live.erro = Some(format!("Indicadores ao vivo: {e}")); }

@@ -1,5 +1,6 @@
 // Sala ao vivo com o Supabase: leitura, mudanças em tempo real e presença (quem está com o site aberto).
 import { supabase } from './supabase';
+import { validPoint, type RoomPresence } from '../game/movement';
 import type {
   AttentionCall, BoardSnapshot, DayApp, DaySummary, GloryScore, InstagramStats, SaturdayShift, TimeLogRow, Contest, Device, Duration, HelpReq, LiveSnapshot, Meeting, MeetingMember, MemberState, Message, NewTask,
   OnlineMap, Pause, Status, Task, TaskEvent, Transfer, Vote
@@ -47,20 +48,27 @@ export async function loadLive(wsId: string, day: string, userId: string): Promi
 }
 
 const TABLES = ['statuses', 'pauses', 'meetings', 'meeting_members', 'attention_calls', 'tasks', 'task_contests', 'contest_votes', 'task_transfers', 'task_help', 'saturday_shifts', 'instagram_stats'];
-export function subscribeLive(wsId: string, me: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void) {
+export function subscribeLive(wsId: string, me: { userId: string; device: Device }, onChange: () => void, onOnline: (m: OnlineMap) => void, bindScene?: (fn: (s: RoomPresence) => void) => void) {
   const filter = `workspace_id=eq.${wsId}`;
   const ch = supabase.channel('sala:' + wsId, { config: { presence: { key: me.userId } } });
   for (const table of TABLES) ch.on('postgres_changes', { event: '*', schema: 'public', table, filter }, onChange);
   // A mensagem é privada: atualize as conversas por leitura autorizada, sem publicar seu conteúdo no canal da equipe.
   const messageTimer = window.setInterval(onChange, 5000);
   ch.on('presence', { event: 'sync' }, () => {
-    const st = ch.presenceState<{ device: Device }>();
+    const st = ch.presenceState<{ device: Device; scene?: RoomPresence; at?: number }>();
     const map: OnlineMap = {};
-    for (const [uid, metas] of Object.entries(st)) map[uid] = { device: metas.some(x => x.device === 'computador') ? 'computador' : 'celular' };
+    for (const [uid, metas] of Object.entries(st)) {
+      const meta = [...metas].sort((a, b) => Number(b.device === 'computador') - Number(a.device === 'computador') || (b.at || 0) - (a.at || 0))[0];
+      const s = meta?.scene;
+      const safe = s && Number.isFinite(s.lastInputAt) && Number.isFinite(s.movedAt) && s.lastInputAt <= Date.now() + 5000 && s.movedAt <= Date.now() + 5000 && (!s.target || validPoint(s.target));
+      map[uid] = { device: meta?.device === 'computador' ? 'computador' : 'celular', scene: safe ? s : undefined };
+    }
     onOnline(map);
   });
-  ch.subscribe(async s => { if (s === 'SUBSCRIBED') { await ch.track({ device: me.device }); onChange(); } });
-  return () => { window.clearInterval(messageTimer); supabase.removeChannel(ch); };
+  let scene: RoomPresence | undefined, connected = false;
+  bindScene?.(s => { scene = s; if (connected) void ch.track({ device: me.device, scene, at: Date.now() }); });
+  ch.subscribe(async s => { if (s === 'SUBSCRIBED') { connected = true; await ch.track({ device: me.device, scene, at: Date.now() }); onChange(); } else connected = false; });
+  return () => { bindScene?.(() => {}); window.clearInterval(messageTimer); supabase.removeChannel(ch); };
 }
 
 const rpc = async <T = unknown>(fn: string, args: Record<string, unknown>) => check(await supabase.rpc(fn, args)) as T;

@@ -17,6 +17,7 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run test:db
+      - run: npm run test:room
       - run: node scripts/test-browser-activity.mjs
       - run: node scripts/test-browser-delivery.mjs
       - run: node scripts/test-browser-popup.mjs

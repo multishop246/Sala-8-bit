@@ -6,6 +6,8 @@ import { useWs } from '../lib/workspace';
 import * as desktop from '../lib/desktop';
 import { assignTitles, monthStart, titleThemeOf, type GloryCat } from '../glory/glory';
 import { THEME, themesNow } from '../game/themes';
+import { useRoomPresence } from './useRoomPresence';
+import type { Point, RoomPresence } from '../game/movement';
 import type { Avatar, InstagramStats, SaturdayShift, AttentionCall, BoardSnapshot, Device, LiveSnapshot, Meeting, Member, MemberState, NewTask, OnlineMap, Status, Task } from '../lib/types';
 
 const EMPTY_BOARD: BoardSnapshot = { tasks: [], events: [], contests: [], votes: [], transfers: [], help: [], durations: [], messages: [] };
@@ -33,12 +35,15 @@ export interface PersonView {
   music: boolean;
   agents: number;
   idle: boolean;
+  scene?: RoomPresence;
+  capturing: boolean;
 }
 
 interface LiveCtx {
   refresh: () => void;
   ready: boolean;
   now: number;
+  moveCharacter: (target: Point) => void;
   views: PersonView[];
   view: (userId: string) => PersonView | undefined;
   meetings: (Meeting & { people: string[] })[];
@@ -93,6 +98,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const device = useMemo(detectDevice, []);
   const timer = useRef<number>();
   const entered = useRef(false);
+  const room = useRoomPresence(ws.id + ':' + me.user_id);
 
   const reload = useCallback(() => {
     window.clearTimeout(timer.current);
@@ -101,7 +107,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }, 120);
   }, [ws.id, me.user_id, toast]);
 
-  useEffect(() => live.subscribeLive(ws.id, { userId: me.user_id, device }, reload, setOnline), [ws.id, me.user_id, device, reload]);
+  useEffect(() => live.subscribeLive(ws.id, { userId: me.user_id, device }, reload, setOnline, room.bind), [ws.id, me.user_id, device, reload, room.bind]);
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   // ao abrir o site, você entra no escritório (ou volta no dia seguinte depois de encerrar)
@@ -181,6 +187,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       const st = status?.state || 'fora';
       const shown: MemberState = st === 'encerrado' ? 'encerrado' : on ? (st === 'fora' ? 'trabalhando' : st) : (st === 'cafe' || st === 'almoco' ? st : 'fora');
       const mine = (snap?.pauses || []).filter(p => p.user_id === m.user_id);
+      const capturing = !!snap?.board.tasks.some(t => t.id === status?.active_task_id && t.col === 'fazendo' && t.etapa === 'captacao');
       const cafeUsed = mine.filter(p => p.kind === 'cafe').reduce((s, p) => s + ((p.ended_at ? new Date(p.ended_at).getTime() : now) - new Date(p.started_at).getTime()) / 1000, 0);
       return {
         member: m, status, online: on, device: online[m.user_id]?.device || (agentOn ? 'computador' : status?.device || 'computador'), shown,
@@ -188,7 +195,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         lunchDone: mine.some(p => p.kind === 'almoco'),
         meeting: status?.meeting_id ? meetingsOpen.find(x => x.id === status.meeting_id) || null : null,
         agentOn, app: agentOn ? status?.app_now || null : null, appCat: agentOn ? status?.app_cat || null : null,
-        music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0, idle: agentOn && !!status?.idle && !(status?.agents && status.agents > 0)
+        music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0,
+        idle: !capturing && agentOn && (status?.idle_seconds != null ? status.idle_seconds >= 300 : !!status?.idle) && !(status?.agents && status.agents > 0), capturing,
+        scene: m.user_id === me.user_id ? room.scene : online[m.user_id]?.scene
       };
     });
     const gestor = ready.find(m => m.kind === 'gestor');
@@ -210,7 +219,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const nameOf = (id: string | null) => (id ? members.find(m => m.user_id === id)?.display_name || 'ex-membro' : '—');
     return {
       refresh: reload,
-      ready: !!snap, now, views, board, unread, nameOf, titles, look,
+      ready: !!snap, now, views, board, unread, nameOf, titles, look, moveCharacter: room.move,
       saturdays: snap?.saturdays || [], instagram: snap?.instagram || null,
       view: (id: string) => views.find(v => v.member.user_id === id),
       meetings: meetingsOpen,
@@ -243,7 +252,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         ackAttention: from => wrap(() => live.ackAttention(ws.id, from))()
       }
     };
-  }, [snap, online, now, members, ws, me.user_id, device, reload, toast, titles]);
+  }, [snap, online, now, members, ws, me.user_id, device, reload, toast, titles, room.scene, room.move]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

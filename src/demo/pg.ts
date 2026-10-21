@@ -6,7 +6,7 @@ export const DEMO_USER = { id: '00000000-0000-4000-8000-0000000000aa', email: 'v
 export const BOT = (i: number) => `00000000-0000-4000-8000-00000000000${i}`;
 export const DEMO_INVITE = 'demo0000000000000000000000000001';
 const DB_NAME = 'sala8bit-demo';
-const VERSION = '6'; // muda quando o esquema da demonstração muda: recria o banco
+const VERSION = '7'; // muda quando o esquema da demonstração muda: recria o banco
 
 const MIGRATIONS = import.meta.glob('../../supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 

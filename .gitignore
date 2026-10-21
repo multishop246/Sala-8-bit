@@ -11,3 +11,4 @@ desktop/src-tauri/target
 desktop/src-tauri/gen
 .tools/
 __pycache__/
+design/qa/

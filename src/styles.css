@@ -3,7 +3,7 @@
   --bg: #0c101d; --panel: #141a2b; --panel2: #1a2236; --deep: #111727; --line: #27304a; --fg: #e7eaf3; --muted: #8d96b2;
   --accent: #8b7bff; --accent-ink: #0c101d; --gold: #f2c94c;
   --prod: #5ad18a; --ref: #3fc1c9; --meet: #6ea8ff; --dis: #ef5a6f;
-  --display: 'Pixelify Sans', ui-monospace, monospace;
+  --display: 'IBM Plex Sans', system-ui, sans-serif;
   --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: dark;
@@ -11,7 +11,7 @@
 * { box-sizing: border-box }
 [hidden] { display: none !important }
 html, body { margin: 0 }
-body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45; min-height: 100vh }
+body { background: radial-gradient(ellipse at 70% 0, #25223f 0, transparent 55%), var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; line-height: 1.45; min-height: 100vh }
 button { font: inherit; color: inherit; cursor: pointer }
 button:disabled { opacity: .45; cursor: not-allowed }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
@@ -64,14 +64,14 @@ p { margin: 0 }
 .opt span { color: var(--muted); font-size: 12px }
 
 /* topo do escritório */
-.app { padding: 14px max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left)); max-width: 1400px; margin: 0 auto }
+.app { padding: 18px max(20px, env(safe-area-inset-right)) 32px max(20px, env(safe-area-inset-left)); max-width: 1800px; margin: 0 auto }
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px }
 .top nav { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto }
 .top nav a, .top nav button { text-decoration: none; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 10px; font-size: 13px }
 .top nav a.active { color: var(--fg); border-color: var(--line); background: var(--panel2) }
-.grid2 { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start }
+.grid2 { display: grid; grid-template-columns: 276px minmax(0, 1fr); gap: 18px; align-items: start }
 @media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr) } .grid2 > aside { display: contents } .grid2 > aside > .me-card { order: 0 } .grid2 > section { order: 1 } .grid2 > aside > :not(.me-card) { order: 2 } }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px }
+.panel { background: linear-gradient(135deg, #1c2033, var(--panel)); border: 1px solid #ffffff12; border-radius: 14px; padding: 16px; box-shadow: 0 8px 24px #00000016 }
 .panel h3 { margin-bottom: 10px }
 .mrow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line) }
 .mrow:last-child { border-bottom: 0 }
