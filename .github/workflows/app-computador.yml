@@ -59,6 +59,7 @@ jobs:
             Windows: baixe o arquivo terminado em -setup.exe. Ele inclui os componentes de IA e a tela Conexões de IA, sem downloads separados nem Python.
             Chrome, Edge e Opera GX exigem uma ativação da extensão por perfil; os arquivos já acompanham o EXE. O Codex exige a revisão de confiança dos conectores. Essas confirmações não são substituídas pelo instalador.
             Inclui correção de IA/ociosidade, aplicativos produtivos, etapas no relatório, função Video Maker e lembrete após uma hora de almoço.
+            O conector Codex verifica o processo de execução pelo acesso limitado do Windows; a tela Conexões de IA mostra a chegada e a validação do último sinal do Codex.
             Veja as instruções e limites em docs/VERSAO-0.6.0.md. macOS: use o .dmg (Intel e Apple Silicon); a instalação integrada de conectores é específica do Windows.
             Os instaladores não são assinados: veja docs/APP-COMPUTADOR.md.
           releaseDraft: false
