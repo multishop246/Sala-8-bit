@@ -55,9 +55,11 @@ export class OfficeWorld {
     this.box(this.scene, width + .7, .6, depth + .7, 0, -.35, 0, '#d3c9cf', .14);
     this.floor = this.box(this.scene, width, .12, depth, 0, -.04, 0, '#e4ded2', .03);
     // Thin grout and alternating warm tiles retain the approved scene's scale.
-    const tileGeometry = new T.BoxGeometry(1.48, .014, 1.48), tiles = new T.InstancedMesh(tileGeometry, this.material('#e7ded1'), Math.ceil(width / 1.5) * Math.ceil(depth / 1.5));
+    const tileRows = Math.ceil(depth / 1.5), tileDepth = depth / tileRows;
+    const tileGeometry = new T.BoxGeometry(1.48, .014, tileDepth - .02), tiles = new T.InstancedMesh(tileGeometry, this.material('#e7ded1'), Math.ceil(width / 1.5) * tileRows);
     let tile = 0; const matrix = new T.Matrix4();
-    for (let x = -width / 2 + .75; x < width / 2; x += 1.5) for (let z = back + .75; z < front; z += 1.5) {
+    for (let x = -width / 2 + .75; x < width / 2; x += 1.5) for (let row = 0; row < tileRows; row++) {
+      const z = back + (row + .5) * tileDepth;
       tiles.setMatrixAt(tile, matrix.makeTranslation(x, .03, z)); tiles.setColorAt(tile++, new T.Color(Math.round((x + z) / 1.5) % 2 ? '#dfd5c7' : '#f0e5d6'));
     }
     tiles.count = tile; tiles.receiveShadow = true; this.scene.add(tiles);
@@ -343,7 +345,7 @@ export class OfficeWorld {
       } else root.rotation.y = state.facing;
       const seated = !walking && !actor.path.length && state.sitting;
       if (seated && state.mode === 'lounge') { root.position.x += (state.target.x - root.position.x) * Math.min(1, dt * 5); root.position.z += (state.target.z - root.position.z) * Math.min(1, dt * 5); }
-      actor.body.position.y = seated ? -.22 : walking ? Math.sin(elapsed * 12) * .025 : 0;
+      actor.body.position.y = seated ? (state.mode === 'lounge' ? .15 : 0) : walking ? Math.sin(elapsed * 12) * .025 : 0;
       actor.legs.forEach((leg, i) => { leg.rotation.x = seated ? -Math.PI / 2 : walking ? Math.sin(elapsed * 11 + i * Math.PI) * .55 : 0; });
       actor.arms.forEach((arm, i) => { arm.rotation.x = seated ? -.7 : walking ? Math.sin(elapsed * 11 + i * Math.PI + Math.PI) * .45 : 0; });
       actor.headphones.visible = state.music; actor.note.visible = state.music; actor.note.position.set(-.5, 2.12 + Math.sin(elapsed * 3) * .07, 0);

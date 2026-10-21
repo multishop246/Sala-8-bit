@@ -5,13 +5,13 @@ import { LOUNGE_AFTER_MS, RETURN_AFTER_MS, validPoint, type Point, type RoomPres
 export function useRoomPresence(identity: string) {
   const initial = (): RoomPresence => ({ target: null, movedAt: 0, lastInputAt: Date.now(), idle: false });
   const current = useRef<RoomPresence>(initial());
-  const [scene, setScene] = useState<RoomPresence>(current.current);
+  const [, setRevision] = useState(0);
   const publisher = useRef<(s: RoomPresence) => void>(() => {});
   const native = useRef<{ at: number; seconds: number } | null>(null);
   const lastPublish = useRef(0);
   const commit = useCallback((force = false) => {
     if (!force && Date.now() - lastPublish.current < 2000) return;
-    lastPublish.current = Date.now(); setScene({ ...current.current }); publisher.current(current.current);
+    lastPublish.current = Date.now(); setRevision(n => n + 1); publisher.current(current.current);
   }, []);
   useEffect(() => {
     current.current = initial(); native.current = null; commit(true);
@@ -48,5 +48,5 @@ export function useRoomPresence(identity: string) {
     const now = Date.now(); current.current = { target, movedAt: now, lastInputAt: now, idle: false }; commit(true);
   }, [commit]);
   const bind = useCallback((fn: (s: RoomPresence) => void) => { publisher.current = fn; fn(current.current); }, []);
-  return { scene, move, bind };
+  return { scene: current.current, move, bind };
 }
