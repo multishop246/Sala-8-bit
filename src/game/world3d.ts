@@ -7,18 +7,21 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import type { Avatar } from '../lib/types';
 import { DEFAULT_AVATAR } from './sprites';
 import { THEME, themeVariant } from './themes';
-import { findPath, type Point } from './movement';
-import { REFERENCE_H, REFERENCE_SIZE, referencePoint, type OfficeLayout } from './office-layout';
+import { findPath, walkable, type Point } from './movement';
+import { REFERENCE_H, REFERENCE_SIZE, REFERENCE_TABLES, referencePoint, officeLayout, REFERENCE_SPOTS, brainstormSeat, type OfficeLayout } from './office-layout';
+import { printerWindow, studioRole, type StudioRole } from './office-visuals';
 
 export interface ActorState {
   id: string; avatar: Partial<Avatar>; target: Point; facing: number; sitting: boolean;
   music: boolean; agents: number; crown: boolean; mode: string;
 }
 interface Rig {
-  root: T.Group; body: T.Group; legs: T.Group[]; arms: T.Group[]; headphones: T.Group;
+  root: T.Group; body: T.Group; legs: T.Group[]; knees: T.Group[]; arms: T.Group[]; headphones: T.Group;
   robot: T.Group; note: T.Sprite; ring: T.Mesh; camera: T.Group; fingerprint: string;
-  path: Point[]; goal: string; state: ActorState;
+  path: Point[]; goal: string; state: ActorState; seatProgress: number;
+  studioVisit: number; role: StudioRole; phone: T.Group; boom: T.Group; slate: T.Group;
 }
+interface Chair { mesh: T.Group; home: Point; facing: number; pull: number }
 export interface WorldLabel { key: string; title: string; point: T.Vector3; action?: string; number?: number }
 const COLORS = { wall: '#393743', trim: '#282638', wood: '#c28f58', teal: '#3caab3', purple: '#7460c4', gold: '#efc361' };
 
@@ -41,9 +44,14 @@ export class OfficeWorld {
   private resources = new Set<T.Texture>();
   private w = 1;
   private h = 1;
+  private chairs: Chair[] = [];
+  private printer?: { root: T.Group; body: T.Group; arms: T.Group[]; legs: T.Group[]; path: Point[]; waypoint: number; active: boolean };
+  private printerMinute = -1;
+  private printerTime?: ReturnType<typeof printerWindow>;
+  private disposed = false;
   private composer: EffectComposer;
   private ambientOcclusion: GTAOPass;
-  constructor(readonly host: HTMLElement, readonly layout: OfficeLayout) {
+  constructor(readonly host: HTMLElement, readonly layout: OfficeLayout, readonly visualSeed = 'sala-8-bit') {
     this.renderer = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = T.PCFSoftShadowMap;
@@ -95,7 +103,7 @@ export class OfficeWorld {
     this.label('coffee', 'Copa', -10.8, 3.05, back + 7.1, 'copa', 2);
     this.label('meeting', 'Sala de reunião', 1.7, 2.7, front - 3.6, 'meeting', 3);
     this.label('glory', 'Mural da Glória', -11.6, 3.4, back + 3.15, 'mural', 4);
-    this.label('team', 'Mesas da equipe', -.8, 2.5, back + 7.8, undefined, 5);
+    this.label('team', 'Mesas da equipe', -.8, 2.5, back + 7.8, 'own-desk', 5);
     this.label('manager', 'Sala do gestor', 8.8, 3, back + 4.5, 'boss', 6);
     this.label('brainstorm', 'Brainstorm', 8.2, 2.5, front - 5.6, 'brainstorm', 7);
     this.label('lounge', 'Lounge', -6.2, 2.4, back + 2.2, 'lounge', 8);
@@ -122,15 +130,16 @@ export class OfficeWorld {
     this.objects.length = 0; this.pickActions.clear(); this.labels.length = 0;
     const floor = new T.Mesh(new T.PlaneGeometry(24, 19), new T.ShadowMaterial({ opacity: .2, depthWrite: false }));
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.scene.add(floor); this.floor = floor;
-    this.layout.blocks.forEach((b, i) => {
-      const h = [1.05, 1.05, 1.2, .7, .5, 2.35, 1.05, 1, 1.05][i] || 1;
+    this.layout.blocks.forEach(b => {
+      const h = b.h ?? 1;
+      if (!h) return;
       const mesh = this.box(this.scene, b.w, h, b.d, b.x, h / 2, b.z, '#ffffff', 0);
-      mesh.material = new T.MeshStandardMaterial({ colorWrite: false, side: T.DoubleSide }); mesh.castShadow = false;
+      mesh.material = new T.MeshStandardMaterial({ colorWrite: false, side: T.DoubleSide }); mesh.castShadow = false; mesh.renderOrder = -2;
     });
     const labels: [string, string, number, number, string | undefined, number][] = [
       ['tasks', 'Quadro de tarefas', 1057, 216, 'board', 1], ['coffee', 'Copa', 269, 290, 'copa', 2],
       ['meeting', 'Sala de reunião', 820, 661, 'meeting', 3], ['glory', 'Mural da Glória', 433, 155, 'mural', 4],
-      ['team', 'Mesas da equipe', 779, 393, undefined, 5], ['manager', 'Sala do gestor', 1290, 470, 'boss', 6],
+      ['team', 'Mesas da equipe', 779, 355, 'own-desk', 5], ['manager', 'Sala do gestor', 1290, 470, 'boss', 6],
       ['brainstorm', 'Brainstorm', 1019, 625, 'brainstorm', 7], ['lounge', 'Lounge', 735, 177, 'lounge', 8],
       ['studio', 'Estúdio de captação', 465, 446, 'studio', 9],
     ];
@@ -145,6 +154,47 @@ export class OfficeWorld {
       const portrait = new T.Mesh(this.referenceQuad(corners), new T.MeshBasicMaterial({ side: T.DoubleSide, depthTest: false, depthWrite: false }));
       portrait.renderOrder = -10; this.portraits.push(portrait); this.scene.add(portrait);
     });
+    // Chairs and printer are absent from the background: all moving parts are real objects.
+    for (const d of officeLayout(8).desks) this.chair(d.x, d.z, d.facing);
+    REFERENCE_SPOTS.meeting.forEach((p, i) => this.chair(p.x, p.z, i < 3 ? Math.PI : 0));
+    for (let i = 0; i < 4; i++) { const p = brainstormSeat(i); this.chair(p.x, p.z, p.facing); }
+    this.chair(REFERENCE_SPOTS.manager.x, REFERENCE_SPOTS.manager.z, 0, this.scene, '#65558d');
+    this.brandLED(); this.makePrinter();
+    const meetingScreen = this.canvasTexture(400, 330, c => {
+      c.fillStyle = '#272a3b'; c.fillRect(0, 0, 400, 330);
+      c.fillStyle = '#6250a9'; c.fillRect(16, 16, 368, 298);
+      ['#bca1f5', '#74d9e3', '#f7d16c', '#c7b5f6'].forEach((color, i) => { c.fillStyle = color; c.fillRect(66 + i * 70, 235 - i * 40, 40, 55 + i * 40); });
+    });
+    const screen = new T.Mesh(this.referenceQuad([[680, 681], [745, 648], [745, 709], [680, 742]]), new T.MeshBasicMaterial({ map: meetingScreen, side: T.DoubleSide, depthTest: false, depthWrite: false }));
+    screen.renderOrder = -5; this.scene.add(screen);
+  }
+  private brandLED() {
+    const img = new Image(); img.src = '/scenery/aromasil-original.png';
+    img.onload = () => {
+      if (this.disposed) return;
+      // Exact uploaded pixels, with white paper removed at display time. No redraw or font substitution.
+      const source = document.createElement('canvas'); source.width = img.width; source.height = img.height;
+      const c = source.getContext('2d')!; c.drawImage(img, 0, 0);
+      const data = c.getImageData(0, 0, img.width, img.height);
+      let left = img.width, top = img.height, right = 0, bottom = 0;
+      for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) {
+        const i = (y * img.width + x) * 4, a = 255 - Math.min(data.data[i], data.data[i + 1], data.data[i + 2]);
+        data.data[i + 3] = a;
+        if (a > 8) { left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y); }
+        if (a) for (let k = 0; k < 3; k++) data.data[i + k] = Math.max(0, (data.data[i + k] - (255 - a)) * 255 / a);
+      }
+      c.putImageData(data, 0, 0);
+      const canvas = document.createElement('canvas'), pad = 32;
+      canvas.width = right - left + 1 + pad * 2; canvas.height = bottom - top + 1 + pad * 2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 16;
+      ctx.drawImage(source, left, top, right - left + 1, bottom - top + 1, pad, pad, right - left + 1, bottom - top + 1);
+      ctx.shadowBlur = 6; ctx.drawImage(source, left, top, right - left + 1, bottom - top + 1, pad, pad, right - left + 1, bottom - top + 1);
+      ctx.shadowBlur = 0; ctx.drawImage(source, left, top, right - left + 1, bottom - top + 1, pad, pad, right - left + 1, bottom - top + 1);
+      const texture = new T.CanvasTexture(canvas); texture.colorSpace = T.SRGBColorSpace; this.resources.add(texture);
+      const sign = new T.Mesh(this.referenceQuad([[1173, 347], [1261, 396], [1261, 428], [1173, 379]]), new T.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, side: T.DoubleSide, toneMapped: false }));
+      sign.renderOrder = 5; this.scene.add(sign);
+    };
   }
   private referenceQuad(corners: number[][]) {
     const positions = corners.flatMap(([u, v]) => { const p = referencePoint(u, v); return [p.x, 0, p.z]; });
@@ -248,7 +298,49 @@ export class OfficeWorld {
     this.cylinder(g, .06, .45, 0, .25, 0, '#7a7b88'); this.box(g, .75, .055, .07, 0, .09, 0, '#555763'); this.box(g, .07, .055, .75, 0, .09, 0, '#555763');
     for (const side of [-1, 1]) { this.box(g, .065, .3, .06, side * .4, .66, 0, '#57586a'); this.box(g, .11, .07, .43, side * .4, .83, .06, color); }
     for (let i = 0; i < 5; i++) { const a = i * Math.PI * .4, arm = this.box(g, .055, .055, .4, Math.sin(a) * .2, .13, Math.cos(a) * .2, '#545764'); arm.rotation.y = a; const wheel = this.cylinder(g, .075, .07, Math.sin(a) * .4, .08, Math.cos(a) * .4, '#282a36'); wheel.rotation.z = Math.PI / 2; }
+    this.chairs.push({ mesh: g, home: { x, z }, facing, pull: 0 });
     return g;
+  }
+  private makePrinter() {
+    const root = new T.Group(), body = new T.Group(), arms: T.Group[] = [], legs: T.Group[] = [];
+    this.scene.add(root); root.add(body);
+    this.box(body, .65, .85, .62, 0, .5, 0, '#e5e3df', .07);
+    this.box(body, .7, .11, .68, 0, .97, 0, '#f3efe6');
+    this.box(body, .46, .16, .025, 0, .76, .32, '#344d5e');
+    for (const x of [-.12, .12]) this.sphere(body, .045, x, .77, .345, '#75e6ed');
+    this.box(body, .45, .035, .07, 0, .48, .32, '#53606b');
+    this.box(body, .4, .02, .25, 0, 1.04, 0, '#ffffff');
+    for (const sign of [-1, 1]) {
+      const arm = new T.Group(); arm.position.set(sign * .36, .69, 0); body.add(arm); arms.push(arm);
+      this.box(arm, .14, .35, .16, 0, -.14, 0, '#b7bdc6'); this.sphere(arm, .1, 0, -.35, 0, '#d6b77c');
+      const leg = new T.Group(); leg.position.set(sign * .21, .29, 0); root.add(leg); legs.push(leg);
+      this.box(leg, .17, .4, .19, 0, -.16, 0, '#646d7c'); this.box(leg, .24, .12, .35, 0, -.37, .07, '#454d62');
+    }
+    const home = referencePoint(640, 574); root.position.set(home.x, 0, home.z);
+    this.printer = { root, body, arms, legs, path: [], waypoint: 0, active: false };
+  }
+  private animatePrinter(dt: number, elapsed: number, now = Date.now()) {
+    const p = this.printer; if (!p) return;
+    if (this.printerMinute !== Math.floor(now / 60_000)) { this.printerMinute = Math.floor(now / 60_000); this.printerTime = printerWindow(now, this.visualSeed); }
+    const time = this.printerTime!, active = now >= time.start && now < time.end, home = referencePoint(640, 574);
+    const blocks = this.layout.blocks.filter(b => Math.hypot(b.x - home.x, b.z - home.z) > .1);
+    if (active !== p.active) { p.active = active; p.path = []; }
+    if (active && !p.path.length) {
+      const points = [[614, 565], [872, 465], [1018, 540], [610, 370], [469, 430], [640, 574]];
+      const target = time.end - now < 30_000 ? home : referencePoint(...points[p.waypoint++ % points.length] as [number, number]);
+      p.path = findPath(p.root.position, target, blocks, this.layout.width, this.layout.depth);
+    }
+    let walking = false;
+    if (active && p.path.length) {
+      const target = p.path[0], dx = target.x - p.root.position.x, dz = target.z - p.root.position.z, d = Math.hypot(dx, dz), step = Math.min(dt * 1.1, d);
+      if (d > .01) { p.root.position.x += dx / d * step; p.root.position.z += dz / d * step; p.root.rotation.y = Math.atan2(dx, dz); walking = true; }
+      if (d < .04) p.path.shift();
+    }
+    if (!active) { p.root.position.set(home.x, 0, home.z); p.root.rotation.y = 0; }
+    const morph = active ? Math.max(0, Math.min(1, (now - time.start) / 2500, (time.end - now) / 2500)) : 0;
+    p.body.position.y = morph * .47 + (walking ? Math.sin(elapsed * 8) * .025 : 0);
+    p.arms.forEach((arm, i) => { arm.visible = morph > .01; arm.scale.y = .05 + .95 * morph; arm.rotation.z = (i ? -1 : 1) * morph * .35; arm.rotation.x = walking ? Math.sin(elapsed * 7 + i * Math.PI) * .45 : 0; });
+    p.legs.forEach((leg, i) => { leg.visible = morph > .01; leg.scale.y = morph; leg.position.y = .45 * morph; leg.rotation.x = walking ? Math.sin(elapsed * 7 + i * Math.PI) * .6 : 0; });
   }
   private table(x: number, z: number, w: number, d: number, y = .98) {
     const top = this.box(this.scene, w, .16, d, x, y, z, COLORS.wood, .09);
@@ -499,10 +591,12 @@ export class OfficeWorld {
       if (a.hs === 'franja') this.box(body, .5, .16, .09, -.04, 1.61, .23, a.hair, .035);
     }
     if (a.beard !== 'nenhuma') this.box(body, .41, .15, .07, 0, 1.23, .235, a.hair, .04);
-    const legs: T.Group[] = [], arms: T.Group[] = [];
+    const legs: T.Group[] = [], knees: T.Group[] = [], arms: T.Group[] = [];
     for (const sign of [-1, 1]) {
       const leg = new T.Group(); leg.position.set(sign * .135, .62, 0); body.add(leg); legs.push(leg);
-      this.box(leg, .19, .47, .22, 0, -.23, 0, '#3b4054', .04); this.box(leg, .22, .14, .34, 0, -.48, .055, '#2d2f41', .05);
+      this.box(leg, .19, .25, .22, 0, -.12, 0, '#3b4054', .04);
+      const knee = new T.Group(); knee.position.y = -.25; leg.add(knee); knees.push(knee);
+      this.box(knee, .18, .48, .2, 0, -.24, 0, '#3b4054', .04); this.box(knee, .22, .14, .34, 0, -.48, .055, '#2d2f41', .05);
       const arm = new T.Group(); arm.position.set(sign * .32, 1.07, 0); body.add(arm); arms.push(arm);
       this.box(arm, .16, .28, .2, 0, -.13, 0, clothes, .04); this.box(arm, .15, .26, .17, 0, -.36, 0, skin, .05);
     }
@@ -518,9 +612,19 @@ export class OfficeWorld {
     const note = new T.Sprite(new T.SpriteMaterial({ map: noteTexture, depthTest: false })); note.scale.set(.48, .48, 1); root.add(note);
     const ring = new T.Mesh(new T.RingGeometry(.42, .47, 32), new T.MeshBasicMaterial({ color: '#a68cf0', side: T.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .065; root.add(ring);
     const cam = new T.Group(); this.box(cam, .4, .28, .25, 0, 0, 0, '#303b4b'); this.cylinder(cam, .09, .2, 0, 0, .2, '#576477').rotation.x = Math.PI / 2; cam.position.set(.3, .9, .3); body.add(cam);
+    const phone = new T.Group(); phone.position.set(.3, 1.35, .5); body.add(phone);
+    this.box(phone, .19, .36, .045, 0, 0, 0, '#26324b', .025); this.box(phone, .15, .29, .01, 0, 0, -.025, '#78c2d6');
+    const boom = new T.Group(); boom.position.set(0, 1.85, .1); body.add(boom);
+    this.cylinder(boom, .025, 1.8, .5, 0, .2, '#414657').rotation.z = Math.PI / 2;
+    this.box(boom, .35, .16, .18, 1.35, -.05, .2, '#555b66', .07);
+    const slate = new T.Group(); slate.position.set(.05, 1, .4); body.add(slate);
+    this.box(slate, .48, .35, .045, 0, 0, 0, '#344254'); this.box(slate, .5, .08, .06, 0, .2, 0, '#f0e9d8');
+    for (let i = 0; i < 4; i++) this.box(slate, .055, .08, .065, -.18 + i * .12, .2, 0, '#33384b');
     root.position.set(state.target.x, 0, state.target.z);
     this.objects.push(root); this.pickActions.set(root, 'person:' + state.id);
-    return { root, body, legs, arms, headphones, robot, note, ring, camera: cam, fingerprint: JSON.stringify([state.avatar, state.crown]), path: [], goal: '', state };
+    return { root, body, legs, knees, arms, headphones, robot, note, ring, camera: cam, phone, boom, slate,
+      studioVisit: 0, role: studioRole(state.id, 0), seatProgress: state.sitting ? 1 : 0,
+      fingerprint: JSON.stringify([state.avatar, state.crown]), path: [], goal: '', state };
   }
   sync(states: ActorState[], mine: string) {
     const ids = new Set(states.map(s => s.id));
@@ -530,16 +634,24 @@ export class OfficeWorld {
       const fp = JSON.stringify([state.avatar, state.crown]);
       if (actor && actor.fingerprint !== fp) { const position = actor.root.position.clone(); this.removeActor(actor); actor = this.makeActor(state); actor.root.position.copy(position); this.actors.set(state.id, actor); }
       if (!actor) { actor = this.makeActor(state); this.actors.set(state.id, actor); }
+      if (state.mode === 'capture' && actor.state.mode !== 'capture') actor.role = studioRole(state.id, ++actor.studioVisit);
       actor.state = state; actor.ring.visible = state.id === mine;
       const key = `${state.target.x.toFixed(2)},${state.target.z.toFixed(2)}`;
-      if (actor.goal !== key) { actor.goal = key; actor.path = findPath(actor.root.position, state.target, this.layout.blocks, this.layout.width, this.layout.depth); }
+      if (actor.goal !== key) {
+        const chair = state.sitting && this.chairs.find(c => Math.hypot(c.home.x - state.target.x, c.home.z - state.target.z) < .12);
+        const destination = chair ? { x: state.target.x - Math.sin(state.facing) * .32, z: state.target.z - Math.cos(state.facing) * .32 } : state.target;
+        const alreadyThere = Math.hypot(actor.root.position.x - state.target.x, actor.root.position.z - state.target.z) < .06;
+        actor.goal = key; actor.path = alreadyThere ? [] : findPath(actor.root.position, destination, this.layout.blocks, this.layout.width, this.layout.depth);
+        actor.seatProgress = alreadyThere && state.sitting ? 1 : 0;
+      }
     }
   }
   private removeActor(actor: Rig) {
     this.scene.remove(actor.root); this.pickActions.delete(actor.root); const i = this.objects.indexOf(actor.root); if (i >= 0) this.objects.splice(i, 1);
     actor.note.material.map?.dispose(); actor.note.material.dispose(); actor.ring.geometry.dispose(); (actor.ring.material as T.Material).dispose();
   }
-  render(dt: number, elapsed: number) {
+  render(dt: number, elapsed: number, now = Date.now()) {
+    for (const chair of this.chairs) chair.pull = 0;
     for (const actor of this.actors.values()) {
       const { root, state } = actor; let walking = false;
       if (actor.path.length) {
@@ -547,15 +659,37 @@ export class OfficeWorld {
         if (distance > .025) { root.position.x += dx / distance * step; root.position.z += dz / distance * step; root.rotation.y = Math.atan2(dx, dz); walking = true; }
         if (distance < .08) actor.path.shift();
       } else root.rotation.y = state.facing;
-      const seated = !walking && !actor.path.length && state.sitting;
-      if (seated) { root.position.x += (state.target.x - root.position.x) * Math.min(1, dt * 5); root.position.z += (state.target.z - root.position.z) * Math.min(1, dt * 5); }
-      actor.body.position.y = seated ? (state.mode === 'lounge' ? .15 : 0) : walking ? Math.sin(elapsed * 12) * .025 : 0;
-      actor.legs.forEach((leg, i) => { leg.rotation.x = seated ? -Math.PI / 2 : walking ? Math.sin(elapsed * 11 + i * Math.PI) * .55 : 0; });
-      actor.arms.forEach((arm, i) => { arm.rotation.x = seated ? -.7 : walking ? Math.sin(elapsed * 11 + i * Math.PI + Math.PI) * .45 : 0; });
+      const chair = state.sitting && this.chairs.find(c => Math.hypot(c.home.x - state.target.x, c.home.z - state.target.z) < .12);
+      const seated = !walking && !actor.path.length && state.sitting && Math.hypot(root.position.x - state.target.x, root.position.z - state.target.z) < (state.mode === 'lounge' ? 1.4 : .85);
+      if (seated) actor.seatProgress = Math.min(1, actor.seatProgress + dt / 1.8); else actor.seatProgress = 0;
+      const phase = actor.seatProgress, bend = seated ? T.MathUtils.smoothstep(phase, .25, .65) : 0;
+      if (chair && seated) {
+        chair.pull = phase < .25 ? phase / .25 * .32 : phase < .65 ? .32 : (1 - phase) / .35 * .32;
+        // Explicit short docking motion, only through the clear aisle behind this chair.
+        const offset = phase < .25 ? .32 : chair.pull;
+        const dock = { x: state.target.x - Math.sin(state.facing) * offset, z: state.target.z - Math.cos(state.facing) * offset };
+        if (walkable(dock, this.layout.blocks, this.layout.width, this.layout.depth, .12)) { root.position.x = dock.x; root.position.z = dock.z; }
+      }
+      if (seated && state.mode === 'lounge') { root.position.x += (state.target.x - root.position.x) * Math.min(1, dt * 3); root.position.z += (state.target.z - root.position.z) * Math.min(1, dt * 3); }
+      actor.body.position.y = seated ? (state.mode === 'lounge' ? .15 : -.06) * bend : walking ? Math.sin(elapsed * 12) * .025 : 0;
+      actor.legs.forEach((leg, i) => { leg.rotation.x = -Math.PI / 2 * bend + (walking ? Math.sin(elapsed * 11 + i * Math.PI) * .55 : 0); actor.knees[i].rotation.x = Math.PI / 2 * bend; actor.knees[i].scale.y = .5 + .5 * bend; });
+      actor.arms.forEach((arm, i) => { arm.rotation.x = seated ? -.9 * (phase < .25 ? 1 : .65) : walking ? Math.sin(elapsed * 11 + i * Math.PI + Math.PI) * .45 : 0; arm.rotation.z = 0; });
       actor.headphones.visible = state.music; actor.note.visible = state.music; actor.note.position.set(-.5, 2.12 + Math.sin(elapsed * 3) * .07, 0);
       actor.robot.visible = state.agents > 0; actor.robot.position.set(.78, .12 + Math.sin(elapsed * 3.5) * .07, .12); actor.robot.rotation.y = -root.rotation.y + .5;
-      actor.camera.visible = state.mode === 'capture';
+      const working = state.mode === 'capture' && !walking;
+      actor.camera.visible = working && actor.role === 'camera'; actor.phone.visible = working && actor.role === 'stories';
+      actor.boom.visible = working && actor.role === 'microphone'; actor.slate.visible = working && actor.role === 'director';
+      if (working) {
+        const pulse = Math.sin(elapsed * 2 + actor.studioVisit) * .06;
+        if (actor.role === 'camera') { actor.camera.position.y = 1.15 + pulse * .1; actor.arms.forEach(a => { a.rotation.x = -1.25 + pulse; }); }
+        if (actor.role === 'stories') { actor.arms[1].rotation.x = -1.8 + pulse; actor.phone.rotation.y = pulse; }
+        if (actor.role === 'microphone') actor.arms.forEach((a, i) => { a.rotation.x = -2.4; a.rotation.z = (i ? -1 : 1) * .3; });
+        if (actor.role === 'director') { actor.arms[0].rotation.x = -1; actor.arms[1].rotation.x = -1.5 + Math.sin(elapsed * 2) * .4; actor.slate.rotation.z = pulse; }
+        actor.body.rotation.y = pulse * .3;
+      } else actor.body.rotation.y = 0;
     }
+    for (const chair of this.chairs) { chair.mesh.position.x = chair.home.x - Math.sin(chair.facing) * chair.pull; chair.mesh.position.z = chair.home.z - Math.cos(chair.facing) * chair.pull; }
+    this.animatePrinter(dt, elapsed, now);
     if (this.ambientOcclusion.enabled) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
   }
@@ -590,8 +724,11 @@ export class OfficeWorld {
       }
       if (u > 935 && u < 1165 && v > .48 * (u - 935) + 205 && v < .48 * (u - 935) + 308) return { action: 'board' };
       if (u > 340 && u < 584 && v > 250 - (u - 340) * .48 && v < 370 - (u - 340) * .48) return { action: 'mural' };
-      const top = referencePoint(u, v + 53), tables = [...new Map(this.layout.desks.map(d => [JSON.stringify(d.table), d.table])).values()];
+      const top = referencePoint(u, v + 53), tables = REFERENCE_TABLES;
       for (let i = 0; i < tables.length; i++) if (Math.abs(top.x - tables[i].x) < 2.2 && Math.abs(top.z - tables[i].z) < .8) return { action: 'desk-table:' + i };
+      const meetingTable = referencePoint(813, 809), managerTable = referencePoint(1310, 619);
+      if (Math.abs(top.x - meetingTable.x) < 2 && Math.abs(top.z - meetingTable.z) < .65) return { action: 'meeting' };
+      if (Math.abs(top.x - managerTable.x) < 1.83 && Math.abs(top.z - managerTable.z) < .68) return { action: 'boss' };
       if (((u - 1034) / 83) ** 2 + ((v - 675) / 53) ** 2 < 1) return { action: 'brainstorm' };
       const studio = [[298,535],[451,461],[614,645],[516,704]]; let inside = false;
       for (let i = 0, j = studio.length - 1; i < studio.length; j = i++) {
@@ -613,6 +750,7 @@ export class OfficeWorld {
   }
   mark(point: Point | null) { this.targetMarker.visible = !!point; if (point) this.targetMarker.position.set(point.x, .065, point.z); }
   dispose() {
+    this.disposed = true;
     this.scene.traverse(object => { if (object instanceof T.Mesh || object instanceof T.Sprite) { if (object instanceof T.Mesh) object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach(m => m.dispose()); } });
     this.resources.forEach(t => t.dispose()); this.materials.forEach(m => m.dispose()); this.geometries.forEach(g => g.dispose());
     this.composer.passes.forEach(pass => pass.dispose()); this.composer.dispose();

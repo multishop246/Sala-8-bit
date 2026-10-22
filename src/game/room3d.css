@@ -14,7 +14,7 @@
 .room3d-labels { pointer-events: none; overflow: hidden; container-type: inline-size; }
 .room3d-labels button { position: absolute; transform: translate(-50%,-100%); pointer-events: auto; white-space: nowrap; font-family: var(--body); transition: background .15s; }
 .room3d-zone { border: 1px solid #ffffff25; border-radius: 7px; background: #252036ed; padding: 4px 8px; color: #fff; font-size: clamp(8px,.9cqi,12px); font-weight: 600; box-shadow: 0 4px 10px #19172a20; }
-.room3d-zone { display: flex; align-items: center; gap: 5px; padding: 4px 8px 4px 4px; }
+.room3d-zone { display: flex; align-items: center; gap: 5px; padding: 4px 8px 4px 4px; z-index: 2; }
 .room3d-zone .zone-number { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; background: #ffd45e; color: #302638; font-size: 1.02em; font-weight: 800; }
 .room3d-zone:hover { background: #4b3d75; }
 .room3d-person { background: #242237de; border: 1px solid #ffffff30; color: #fff; border-radius: 20px; padding: 3px 7px; font-size: clamp(7px,.85cqi,11px); box-shadow: 0 2px 6px #0002; }

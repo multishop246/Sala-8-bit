@@ -2,7 +2,7 @@ import type { MemberState } from '../lib/types';
 
 export interface Point { x: number; z: number }
 export interface RoomPresence { target: Point | null; movedAt: number; lastInputAt: number; idle: boolean }
-export interface Obstacle { x: number; z: number; w: number; d: number }
+export interface Obstacle { x: number; z: number; w: number; d: number; h?: number }
 export const RETURN_AFTER_MS = 15_000;
 export const LOUNGE_AFTER_MS = 300_000;
 

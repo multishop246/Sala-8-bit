@@ -74,7 +74,7 @@ export function Office() {
   };
   const ownDesk = async () => {
     if (mine?.capturing || mine?.status?.room_activity === 'brainstorm') await L.act.setRoomActivity('desk');
-    else setDlg({ kind: 'mydesk' });
+    else L.returnCharacter();
   };
 
   return (
@@ -103,7 +103,7 @@ export function Office() {
           </div>
         </aside>
         <section className="stack">
-          <Room desks={ws.desks} members={ready}
+          <Room desks={ws.desks} members={ready} visualSeed={ws.id}
             live={{
               views: L.views, meetings: L.meetings, callsToMe: L.callsToMe, meId: me.user_id, now: L.now, gestorName: L.gestorName, look: L.look,
               taskTitle: uid => activeTask(uid)?.title || null,

@@ -44,6 +44,7 @@ interface LiveCtx {
   ready: boolean;
   now: number;
   moveCharacter: (target: Point) => void;
+  returnCharacter: () => void;
   views: PersonView[];
   view: (userId: string) => PersonView | undefined;
   meetings: (Meeting & { people: string[] })[];
@@ -221,7 +222,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     const nameOf = (id: string | null) => (id ? members.find(m => m.user_id === id)?.display_name || 'ex-membro' : '—');
     return {
       refresh: reload,
-      ready: !!snap, now, views, board, unread, nameOf, titles, look, moveCharacter: room.move,
+      ready: !!snap, now, views, board, unread, nameOf, titles, look, moveCharacter: room.move, returnCharacter: room.reset,
       saturdays: snap?.saturdays || [], instagram: snap?.instagram || null,
       view: (id: string) => views.find(v => v.member.user_id === id),
       meetings: meetingsOpen,

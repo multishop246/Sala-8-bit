@@ -26,23 +26,36 @@ export function referencePoint(u: number, v: number): Point {
   return { x: (c * e - b * f) / det, z: (a * f - c * d) / det };
 }
 export const REFERENCE_SPOTS = {
-  manager: referencePoint(1314, 560), cafe: referencePoint(300, 459), capture: referencePoint(426, 594),
+  manager: referencePoint(1314, 582), cafe: referencePoint(300, 459), capture: referencePoint(426, 594),
   lounge: referencePoint(728, 303), loungeWalk: referencePoint(666, 338), brainstorm: referencePoint(977, 775),
-  meeting: [[733, 818], [799, 854], [862, 889], [783, 735], [850, 769], [919, 806]].map(([x, y]) => referencePoint(x, y)),
+  meeting: Array.from({ length: 6 }, (_, i) => { const p = referencePoint(813, 809); return { x: p.x + (i % 3 - 1) * 1.6, z: p.z + (i < 3 ? 1.25 : -1.25) }; }),
 };
+export const brainstormSeat = (i: number) => {
+  const center = referencePoint(1035, 716), angle = i % 4 * Math.PI / 2;
+  return { x: center.x + Math.sin(angle) * 1.95, z: center.z + Math.cos(angle) * 1.95, facing: angle + Math.PI };
+};
+export const REFERENCE_TABLES = [referencePoint(670, 497), referencePoint(860, 602)];
 function referenceLayout(count: number) {
-  const spots = [[590, 499], [664, 540], [697, 421], [766, 460], [786, 611], [861, 653], [859, 512], [946, 557]];
-  const tables = [referencePoint(670, 497), referencePoint(860, 602)];
-  const desks = spots.slice(0, count).map(([u, v], i) => ({ ...referencePoint(u, v), n: i + 1, facing: i % 4 < 2 ? Math.PI : 0, table: tables[Math.floor(i / 4)] }));
+  const tables = REFERENCE_TABLES;
+  const desks = Array.from({ length: count }, (_, i) => {
+    const table = tables[Math.floor(i / 4)], front = i % 4 < 2;
+    return { x: table.x + (i % 2 ? 1.05 : -1.05), z: table.z + (front ? 1.5 : -1.5), n: i + 1, facing: front ? Math.PI : 0, table };
+  });
   const blocks: Obstacle[] = [
-    ...tables.map(p => ({ ...p, w: 4.35, d: 1.38 })),
+    ...tables.map(p => ({ ...p, w: 4.35, d: 1.65, h: 1.02 })),
     { ...referencePoint(223, 445), w: 1.2, d: 5.9 },
     { ...referencePoint(766, 289), w: 3.95, d: 1.05 },
     { ...referencePoint(706, 302), w: 1.8, d: .85 },
-    { ...referencePoint(400, 556), w: .18, d: 4.8 },
+    { ...referencePoint(400, 556), w: .18, d: 4.8, h: 2.35 },
     { ...referencePoint(813, 809), w: 4, d: 1.3 },
     { ...referencePoint(1035, 716), w: 2.45, d: 2.45 },
     { ...referencePoint(1310, 619), w: 3.65, d: 1.35 },
+    // Single room dividers, with openings kept clear. These are collision-only.
+    { ...referencePoint(665, 809), w: .08, d: 3.7, h: 0 },
+    { ...referencePoint(958, 855), w: .08, d: 3.4, h: 0 },
+    { ...referencePoint(1133, 583), w: .08, d: 4.1, h: 0 },
+    { ...referencePoint(1402, 676), w: 2.4, d: .08, h: 0 },
+    { ...referencePoint(640, 574), w: .65, d: .65, h: 0 }, // printer footprint
   ];
   return { width: 24, depth: 19, back: -9.5, front: 9.5, desks, blocks, reference: true };
 }

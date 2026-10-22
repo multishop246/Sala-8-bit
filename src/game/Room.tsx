@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { PixelRoom, type RoomProps } from './PixelRoom';
-import { officeLayout, loungeSeat, REFERENCE_SPOTS, referencePoint } from './office-layout';
+import { officeLayout, loungeSeat, REFERENCE_SPOTS, referencePoint, brainstormSeat } from './office-layout';
 import { destinationMode, findPath, type Point } from './movement';
 import type { ActorState, OfficeWorld } from './world3d';
 import { STATE_COLOR } from '../live/LiveProvider';
@@ -24,11 +24,9 @@ export function Room(props: RoomProps) {
     let last = performance.now(), lastSync = -1;
     const activate = (action: string) => {
       const p = latest.current, l = p.live;
+      if (action === 'own-desk') { p.onOwnDesk?.(); return; }
       if (action.startsWith('desk-table:')) {
-        const own = p.members.find(m => m.user_id === l?.meId), ownDesk = layout.desks.find(d => d.n === own?.desk);
-        const table = [...new Set(layout.desks.map(d => JSON.stringify(d.table)))][Number(action.slice(11))];
-        if (ownDesk && JSON.stringify(ownDesk.table) === table) p.onOwnDesk?.();
-        else { const spot = layout.desks.find(d => JSON.stringify(d.table) === table), member = p.members.find(m => m.desk === spot?.n); if (member) p.onPerson?.(member.user_id); }
+        p.onOwnDesk?.();
         return;
       }
       if (action === 'studio' && p.onStudio) { p.onStudio(); return; }
@@ -54,7 +52,7 @@ export function Room(props: RoomProps) {
     };
     void import('./world3d').then(({ OfficeWorld }) => {
       if (stopped || !host.current) return;
-      const w = new OfficeWorld(host.current, layout); world.current = w; setReady(true);
+      const w = new OfficeWorld(host.current, layout, latest.current.visualSeed); world.current = w; setReady(true);
       observer = new ResizeObserver(() => w.resize()); observer.observe(host.current);
       w.renderer.domElement.addEventListener('webglcontextlost', event => { event.preventDefault(); if (!stopped) setFailed(true); });
       w.renderer.domElement.addEventListener('click', event => {
@@ -88,8 +86,8 @@ export function Room(props: RoomProps) {
                 movedAt: scene?.movedAt ?? 0, target: scene?.target ?? null, now: Date.now(), activity: v.status?.room_activity });
               if (mode === 'roam' && scene?.target) { target = scene.target; sitting = false; }
               else if (mode === 'lounge') { target = loungeSeat(lounge++, layout.back); facing = 0; }
-              else if (mode === 'brainstorm') { const i = brainstorm++; target = layout.reference ? referencePoint(979 + (i % 2) * 120, 722 + Math.floor(i / 2) * 35) : { x: 8.1, z: layout.front - 3.7 }; facing = Math.PI; }
-              else if (mode === 'capture') { const i = capture++; target = layout.reference ? referencePoint(405 + (i % 3) * 37, 593 + (i % 3) * 18) : { x: -9.2 + (i % 3) * 1.15, z: layout.front - 2.5 }; sitting = false; facing = .5; }
+              else if (mode === 'brainstorm') { const i = brainstorm++, seat = brainstormSeat(i); target = layout.reference ? seat : { x: 8.1, z: layout.front - 3.7 }; facing = layout.reference ? seat.facing : Math.PI; if (i >= 4) { target = { x: target.x - Math.sin(facing) * .85, z: target.z - Math.cos(facing) * .85 }; sitting = false; } }
+              else if (mode === 'capture') { const i = capture++; target = layout.reference ? referencePoint(386 + (i % 4) * 47, 579 + (i % 4) * 24 + Math.floor(i / 4) * 35) : { x: -9.2 + (i % 3) * 1.15, z: layout.front - 2.5 }; sitting = false; facing = .5; }
               if (v.shown === 'cafe') { const i = cafe++; target = layout.reference ? referencePoint(298 + i * 22, 459 + i * 12) : { x: -9.5, z: layout.back + 6 + i * .8 }; sitting = false; facing = -Math.PI / 2; }
               else if (v.shown === 'reuniao') { const i = meeting++; target = layout.reference ? REFERENCE_SPOTS.meeting[i % 6] : { x: .1 + (i % 3) * 1.6, z: layout.front - 2.8 + (i < 3 ? 1.1 : -1.1) }; facing = i < 3 ? Math.PI : 0; }
               else if (v.shown === 'pausa_gestor') { const i = boss++; target = layout.reference ? referencePoint(1226 + i * 30, 657 + i * 14) : { x: 7.1 + (i % 3) * .9, z: layout.back + 5.6 }; sitting = false; facing = Math.PI; }
@@ -147,7 +145,7 @@ export function Room(props: RoomProps) {
   if (failed) return <><p className="note">O modo 3D não está disponível neste dispositivo. A sala continua acessível abaixo.</p><div className="btns"><button onClick={props.onStudio}>Gravar no estúdio</button><button onClick={props.onBrainstorm}>Brainstorm</button><button onClick={props.onOwnDesk}>Voltar à minha mesa</button></div><PixelRoom {...props} /></>;
   return <div className={'office3d' + (expanded ? ' expanded' : '')}>
     <div className="room3d-header"><div><span className="eyebrow">SEU ESCRITÓRIO VIRTUAL</span><b>Sala 8-bit <span>3D</span></b></div><button type="button" className="ghost sm" onClick={() => setExpanded(!expanded)} aria-label={expanded ? 'Reduzir escritório' : 'Ampliar escritório'}>{expanded ? 'Reduzir ↙' : 'Ampliar ↗'}</button></div>
-    <div className={'room3d-stage' + (layout.reference ? ' reference-scene' : '')}>{layout.reference && <img className="room3d-reference" src="/scenery/office-reference-clean-v2.png" alt="" aria-hidden="true" onError={() => setFailed(true)} />}<div className="room3d-world" ref={host} /><div ref={labels} className="room3d-labels" />{!ready && <div className="room3d-loading">Preparando seu escritório 3D…</div>}</div>
+    <div className={'room3d-stage' + (layout.reference ? ' reference-scene' : '')}>{layout.reference && <img className="room3d-reference" src="/scenery/office-reference-clean-v4.png" alt="" aria-hidden="true" onError={() => setFailed(true)} />}<div className="room3d-world" ref={host} /><div ref={labels} className="room3d-labels" />{!ready && <div className="room3d-loading">Preparando seu escritório 3D…</div>}</div>
     <div className="room3d-footer"><span><i />{pick ? 'Escolha uma mesa livre para o seu personagem' : hint}</span>{live && <span>{live.views.filter(v => v.online).length} pessoas online</span>}</div>
   </div>;
 }

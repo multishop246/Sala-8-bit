@@ -3,13 +3,13 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  server: { watch: { ignored: ['**/design/qa/**'] } },
+  server: { watch: { ignored: ['**/design/qa/**', '**/public/scenery/**'] } },
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'scenery/office-reference-clean-v2.png'],
+      includeAssets: ['icon.svg', 'scenery/office-reference-clean-v4.png', 'scenery/aromasil-original.png'],
       manifest: {
         name: 'Sala 8-bit',
         short_name: 'Sala 8-bit',

@@ -37,6 +37,7 @@ interface LiveProps {
   moveCharacter?: (target: import('./movement').Point) => void;
 }
 export interface RoomProps {
+  visualSeed?: string;
   desks: number;
   members: Member[];
   pick?: { selected: number | null; onSelect: (n: number) => void; me: { name: string; avatar: Partial<Avatar> } };

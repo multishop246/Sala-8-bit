@@ -3,7 +3,32 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 const load = async file => import('data:text/javascript;base64,' + Buffer.from(ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText).toString('base64'));
 const { destinationMode: mode, findPath, walkable, validPoint } = await load('../src/game/movement.ts');
-const { officeLayout, referencePixel, referencePoint, REFERENCE_SPOTS } = await load('../src/game/office-layout.ts');
+const { officeLayout, referencePixel, referencePoint, REFERENCE_SPOTS, brainstormSeat } = await load('../src/game/office-layout.ts');
+const { printerWindow, ROBOT_DURATION, studioRole, STUDIO_ROLES } = await load('../src/game/office-visuals.ts');
+const now = Date.parse('2026-10-21T15:00:00-03:00'), window = printerWindow(now, 'test-office');
+assert.equal(window.end - window.start, ROBOT_DURATION);
+assert.equal(ROBOT_DURATION, 900000);
+assert.deepEqual(printerWindow(now - 3600000, 'test-office'), { ...window, active: printerWindow(now - 3600000, 'test-office').active });
+for (const [offset, active] of [[-1, false], [0, true], [899999, true], [900000, false]]) assert.equal(printerWindow(window.start + offset, 'test-office').active, active);
+assert.notEqual(printerWindow(now + 86400000, 'test-office').start % 86400000, window.start % 86400000);
+assert.equal(new Set(Array.from({length: 4}, (_, i) => studioRole('person', i))).size, STUDIO_ROLES.length);
+const registered = officeLayout(8);
+const seats = [...registered.desks, ...REFERENCE_SPOTS.meeting.map((p, i) => ({ ...p, facing: i < 3 ? Math.PI : 0 })),
+  ...Array.from({ length: 4 }, (_, i) => brainstormSeat(i)), { ...REFERENCE_SPOTS.manager, facing: 0 }];
+for (const seat of seats) {
+  assert.ok(walkable(seat, registered.blocks, 24, 19), 'Seat overlaps a table or partition');
+  const approach = { x: seat.x - Math.sin(seat.facing) * .32, z: seat.z - Math.cos(seat.facing) * .32 };
+  assert.ok(walkable(approach, registered.blocks, 24, 19), 'No clearance for pulling chair');
+  for (const from of registered.desks) {
+    const path = findPath(from, approach, registered.blocks, 24, 19);
+    assert.deepEqual(path.at(-1), approach, 'Seat docking aisle is unreachable');
+    let previous = from;
+    for (const next of path) {
+      for (let t = 0; t <= 1; t += .1) assert.ok(walkable({ x: previous.x + (next.x - previous.x) * t, z: previous.z + (next.z - previous.z) * t }, registered.blocks, 24, 19), 'Route cuts across furniture');
+      previous = next;
+    }
+  }
+}
 for (const [u, v] of [[698, 213], [1486, 650], [940, 943], [84, 493], [670, 497], [1314, 560]]) {
   const p = referencePixel(referencePoint(u, v)); assert.ok(Math.hypot(p.x - u, p.y - v) < 1e-7, 'Reference floor registration drift');
 }
