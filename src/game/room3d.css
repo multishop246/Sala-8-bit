@@ -5,13 +5,17 @@
 .room3d-header b { font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
 .room3d-header b span { font-size: 10px; background: #8270b1; color: #fff; border-radius: 5px; padding: 3px 5px; vertical-align: middle; margin-left: 5px; }
 .room3d-stage { position: relative; aspect-ratio: 1.5; min-height: 330px; background: radial-gradient(ellipse at 45% 35%, #eee3ed 0, #c3b8d8 47%, #969db7 100%); isolation: isolate; }
-.room3d-stage::before { content: ''; position: absolute; inset: 0; opacity: .17; pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 800'%3E%3Cg fill='%237268a1'%3E%3Cpath d='M0 0h120v300H0zm200 30h180v280H200zM440 0h150v270H440zM670 30h220v280H670zM990 0h190v350H990zM0 590h170v210H0zM240 610h160v190H240zM850 600h170v200H850zM1070 480h130v320h-130z'/%3E%3C/g%3E%3C/svg%3E") center/cover; filter: blur(3px); }
+.room3d-stage::before { content: ''; position: absolute; inset: 0; opacity: .82; pointer-events: none; background: url('/scenery/city.svg') center/cover; filter: blur(4px); }
 .room3d-world, .room3d-labels { position: absolute; inset: 0; }
+.reference-scene { aspect-ratio: 1545 / 1018; background: #bfc8df; }
+.reference-scene::before { display: none; }
+.room3d-reference { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; user-select: none; }
 .room3d-world canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: pan-y; }
 .room3d-labels { pointer-events: none; overflow: hidden; container-type: inline-size; }
 .room3d-labels button { position: absolute; transform: translate(-50%,-100%); pointer-events: auto; white-space: nowrap; font-family: var(--body); transition: background .15s; }
 .room3d-zone { border: 1px solid #ffffff25; border-radius: 7px; background: #252036ed; padding: 4px 8px; color: #fff; font-size: clamp(8px,.9cqi,12px); font-weight: 600; box-shadow: 0 4px 10px #19172a20; }
-.room3d-zone::first-letter { color: #ffe087; }
+.room3d-zone { display: flex; align-items: center; gap: 5px; padding: 4px 8px 4px 4px; }
+.room3d-zone .zone-number { display: inline-grid; place-items: center; width: 1.4em; height: 1.4em; border-radius: 50%; background: #ffd45e; color: #302638; font-size: 1.02em; font-weight: 800; }
 .room3d-zone:hover { background: #4b3d75; }
 .room3d-person { background: #242237de; border: 1px solid #ffffff30; color: #fff; border-radius: 20px; padding: 3px 7px; font-size: clamp(7px,.85cqi,11px); box-shadow: 0 2px 6px #0002; }
 .room3d-person::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--status,#6db79a); margin-right: 4px; vertical-align: 1px; }

@@ -98,8 +98,10 @@ export const profileDone = (m: Member) => !!m.display_name && !!m.consent_at;
 // ------------------------------------------------------------- 0.2: sala ao vivo
 export type MemberState = 'fora' | 'trabalhando' | 'cafe' | 'almoco' | 'reuniao' | 'pausa_gestor' | 'encerrado';
 export type Device = 'computador' | 'celular';
+export type RoomActivity = 'desk' | 'recording' | 'brainstorm';
 
 export interface Status { workspace_id: string; user_id: string; state: MemberState; since: string; meeting_id: string | null; device: Device; updated_at: string; active_task_id?: string | null;
+  room_activity?: RoomActivity | null; room_activity_since?: string | null;
   app_now?: string | null; app_cat?: string | null; music?: boolean; agents?: number; idle?: boolean; idle_seconds?: number | null; agent_seen_at?: string | null; agent_live_at?: string | null }
 export interface Pause { id: string; workspace_id: string; user_id: string; kind: 'cafe' | 'almoco'; day: string; started_at: string; ended_at: string | null }
 export interface Meeting { id: string; workspace_id: string; subject: string; created_by: string; visitors: number; outsiders: number; started_at: string; ended_at: string | null }

@@ -1,10 +1,14 @@
 import * as T from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import type { Avatar } from '../lib/types';
 import { DEFAULT_AVATAR } from './sprites';
 import { THEME, themeVariant } from './themes';
 import { findPath, type Point } from './movement';
-import type { OfficeLayout } from './office-layout';
+import { REFERENCE_H, REFERENCE_SIZE, referencePoint, type OfficeLayout } from './office-layout';
 
 export interface ActorState {
   id: string; avatar: Partial<Avatar>; target: Point; facing: number; sitting: boolean;
@@ -32,11 +36,13 @@ export class OfficeWorld {
   private gloryKey = '';
   private portraits: T.Mesh[] = [];
   private geometries = new Map<string, T.BufferGeometry>();
-  private floor: T.Mesh;
+  private floor!: T.Mesh;
   private targetMarker: T.Mesh;
   private resources = new Set<T.Texture>();
   private w = 1;
   private h = 1;
+  private composer: EffectComposer;
+  private ambientOcclusion: GTAOPass;
   constructor(readonly host: HTMLElement, readonly layout: OfficeLayout) {
     this.renderer = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
@@ -45,28 +51,31 @@ export class OfficeWorld {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.domElement.setAttribute('aria-label', 'Escritório 3D interativo. Clique no chão para mover seu personagem.');
     this.renderer.domElement.tabIndex = 0; host.append(this.renderer.domElement);
-    this.scene.add(new T.HemisphereLight('#e6e1ff', '#9b87a2', 1.7));
-    const sun = new T.DirectionalLight('#fff0cf', 3.1); sun.position.set(-8, 22, 10);
+    this.scene.add(new T.HemisphereLight('#e6eaff', '#806a62', 1.5));
+    const sun = new T.DirectionalLight('#ffe2ac', 4.2); sun.position.set(-3, 15, -9);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 28, bottom: -28, near: 1, far: 70 });
     sun.shadow.normalBias = .035; sun.shadow.bias = -.00015; this.scene.add(sun);
-    const fill = new T.DirectionalLight('#a4caff', 1.3); fill.position.set(10, 12, -14); this.scene.add(fill);
+    const fill = new T.DirectionalLight('#c9d9ff', 1.5); fill.position.set(10, 12, 14); this.scene.add(fill);
+    if (!layout.reference) {
     const { width, depth, back, front } = layout;
     this.box(this.scene, width + .7, .6, depth + .7, 0, -.35, 0, '#d3c9cf', .14);
     this.floor = this.box(this.scene, width, .12, depth, 0, -.04, 0, '#e4ded2', .03);
-    // Thin grout and alternating warm tiles retain the approved scene's scale.
-    const tileRows = Math.ceil(depth / 1.5), tileDepth = depth / tileRows;
-    const tileGeometry = new T.BoxGeometry(1.48, .014, tileDepth - .02), tiles = new T.InstancedMesh(tileGeometry, this.material('#e7ded1'), Math.ceil(width / 1.5) * tileRows);
-    let tile = 0; const matrix = new T.Matrix4();
-    for (let x = -width / 2 + .75; x < width / 2; x += 1.5) for (let row = 0; row < tileRows; row++) {
-      const z = back + (row + .5) * tileDepth;
-      tiles.setMatrixAt(tile, matrix.makeTranslation(x, .03, z)); tiles.setColorAt(tile++, new T.Color(Math.round((x + z) / 1.5) % 2 ? '#dfd5c7' : '#f0e5d6'));
-    }
-    tiles.count = tile; tiles.receiveShadow = true; this.scene.add(tiles);
+    // Flat grout avoids noisy contact shadows between hundreds of tiny raised tiles.
+    const tileMap = this.canvasTexture(512, 512, c => {
+      c.fillStyle = '#c3b8a8'; c.fillRect(0, 0, 512, 512);
+      for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) {
+        c.fillStyle = ['#f0e6d6', '#e7ddce', '#e9dfd0', '#ede2d3'][(x * 3 + z) % 4];
+        c.fillRect(x * 128 + .7, z * 128 + .7, 126.6, 126.6);
+      }
+    }); tileMap.wrapS = tileMap.wrapT = T.RepeatWrapping; tileMap.repeat.set(width / 6, depth / 6); tileMap.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    this.floor.material = new T.MeshStandardMaterial({ map: tileMap, roughness: .32, metalness: .035 });
     this.box(this.scene, .24, 3.65, depth, -width / 2, 1.8, 0, COLORS.wall);
     this.box(this.scene, width, 3.65, .24, 0, 1.8, back, COLORS.wall);
     this.box(this.scene, .32, .12, depth, -width / 2, 3.65, 0, COLORS.trim);
     this.box(this.scene, width, .12, .32, 0, 3.65, back, COLORS.trim);
+    this.box(this.scene, width, .12, .06, 0, .15, back + .15, '#6c6567');
+    this.box(this.scene, .06, .12, depth, -width / 2 + .15, .15, 0, '#6c6567');
     this.windows(-6.1, back, 6.2);
     this.windows(9.25, back, 4.5);
     this.coffee(); this.lounge(); this.mural(); this.taskBoard(); this.studio(); this.meeting(); this.brainstorm(); this.manager();
@@ -91,14 +100,90 @@ export class OfficeWorld {
     this.label('brainstorm', 'Brainstorm', 8.2, 2.5, front - 5.6, 'brainstorm', 7);
     this.label('lounge', 'Lounge', -6.2, 2.4, back + 2.2, 'lounge', 8);
     this.label('studio', 'Estúdio de captação', -8, 2.8, front - 4.1, 'studio', 9);
+    }
     this.targetMarker = new T.Mesh(new T.RingGeometry(.25, .31, 32), new T.MeshBasicMaterial({ color: '#9e83ee', transparent: true, opacity: .85, side: T.DoubleSide }));
     this.targetMarker.rotation.x = -Math.PI / 2; this.targetMarker.position.y = .065; this.targetMarker.visible = false; this.scene.add(this.targetMarker);
-    this.camera.position.set(29, 28, 34); this.camera.lookAt(0, .4, 0);
+    this.camera.position.set(29, 31, 34); this.camera.lookAt(0, .4, 0);
+    if (layout.reference) this.prepareReference();
+    const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: 4 });
+    this.composer = new EffectComposer(this.renderer, target);
+    this.composer.setPixelRatio(1);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.ambientOcclusion = new GTAOPass(this.scene, this.camera);
+    this.ambientOcclusion.updateGtaoMaterial({ radius: .4, thickness: .25, samples: 16, distanceFallOff: .8 });
+    this.ambientOcclusion.blendIntensity = .65;
+    this.composer.addPass(this.ambientOcclusion);
+    this.composer.addPass(new OutputPass());
     this.resize();
+  }
+  private prepareReference() {
+    // The approved render supplies the fixed scenery; only live elements are drawn above it.
+    for (const child of this.scene.children) if (!(child instanceof T.Light)) child.visible = false;
+    this.objects.length = 0; this.pickActions.clear(); this.labels.length = 0;
+    const floor = new T.Mesh(new T.PlaneGeometry(24, 19), new T.ShadowMaterial({ opacity: .2, depthWrite: false }));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; this.scene.add(floor); this.floor = floor;
+    this.layout.blocks.forEach((b, i) => {
+      const h = [1.05, 1.05, 1.2, .7, .5, 2.35, 1.05, 1, 1.05][i] || 1;
+      const mesh = this.box(this.scene, b.w, h, b.d, b.x, h / 2, b.z, '#ffffff', 0);
+      mesh.material = new T.MeshStandardMaterial({ colorWrite: false, side: T.DoubleSide }); mesh.castShadow = false;
+    });
+    const labels: [string, string, number, number, string | undefined, number][] = [
+      ['tasks', 'Quadro de tarefas', 1057, 216, 'board', 1], ['coffee', 'Copa', 269, 290, 'copa', 2],
+      ['meeting', 'Sala de reunião', 820, 661, 'meeting', 3], ['glory', 'Mural da Glória', 433, 155, 'mural', 4],
+      ['team', 'Mesas da equipe', 779, 393, undefined, 5], ['manager', 'Sala do gestor', 1290, 470, 'boss', 6],
+      ['brainstorm', 'Brainstorm', 1019, 625, 'brainstorm', 7], ['lounge', 'Lounge', 735, 177, 'lounge', 8],
+      ['studio', 'Estúdio de captação', 465, 446, 'studio', 9],
+    ];
+    for (const [key, title, u, v, action, number] of labels) { const p = referencePoint(u, v); this.label(key, title, p.x, 0, p.z, action, number); }
+    const frames = [
+      [[358, 265], [402, 244], [402, 308], [358, 329]],
+      [[415, 234], [458, 213], [458, 278], [415, 298]],
+      [[473, 204], [516, 183], [516, 248], [473, 269]],
+      [[532, 174], [571, 155], [571, 219], [532, 239]],
+    ];
+    frames.forEach(corners => {
+      const portrait = new T.Mesh(this.referenceQuad(corners), new T.MeshBasicMaterial({ side: T.DoubleSide, depthTest: false, depthWrite: false }));
+      portrait.renderOrder = -10; this.portraits.push(portrait); this.scene.add(portrait);
+    });
+  }
+  private referenceQuad(corners: number[][]) {
+    const positions = corners.flatMap(([u, v]) => { const p = referencePoint(u, v); return [p.x, 0, p.z]; });
+    const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+    g.setAttribute('uv', new T.Float32BufferAttribute([0, 1, 1, 1, 1, 0, 0, 0], 2)); g.setIndex([0, 2, 1, 0, 3, 2]); g.computeVertexNormals(); return g;
+  }
+  private referenceFrame() {
+    const scale = Math.min(this.w / REFERENCE_SIZE.width, this.h / REFERENCE_SIZE.height);
+    return { scale, x: (this.w - REFERENCE_SIZE.width * scale) / 2, y: (this.h - REFERENCE_SIZE.height * scale) / 2 };
+  }
+  private referenceCamera() {
+    const { scale: s, x: ox, y: oy } = this.referenceFrame(), h = REFERENCE_H;
+    const ax = 2 * s / this.w, bx = 2 * ox / this.w - 1, ay = -2 * s / this.h, by = 1 - 2 * oy / this.h;
+    const projection = new T.Matrix4().set(
+      ax * h[0] + bx * h[6], 0, ax * h[1] + bx * h[7], ax * h[2] + bx,
+      ay * h[3] + by * h[6], -ay * 53, ay * h[4] + by * h[7], ay * h[5] + by,
+      -.02, -.025, -.02, 0,
+      h[6], 0, h[7], 1,
+    );
+    this.camera.updateMatrixWorld();
+    this.camera.projectionMatrix.copy(projection.multiply(this.camera.matrixWorld));
+    this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
   }
   private material(color: string, metalness = .06) {
     const key = color + metalness;
-    if (!this.materials.has(key)) this.materials.set(key, new T.MeshStandardMaterial({ color, roughness: .65, metalness }));
+    if (!this.materials.has(key)) {
+      const m = new T.MeshStandardMaterial({ color, roughness: .55, metalness });
+      if ([COLORS.wood, '#b78c63', '#bc946b', '#8d6549'].includes(color)) {
+        m.map = this.canvasTexture(512, 128, c => {
+          c.fillStyle = '#ffffff'; c.fillRect(0, 0, 512, 128);
+          for (let i = 0; i < 150; i++) {
+            const y = (i * 37.73) % 128;
+            c.strokeStyle = `rgba(101,65,33,${.025 + (i % 5) * .014})`; c.lineWidth = .5 + i % 3;
+            c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(140, y + 5, 280, y - 4, 512, y + 1); c.stroke();
+          }
+        }); m.roughness = .4;
+      }
+      this.materials.set(key, m);
+    }
     return this.materials.get(key)!;
   }
   private box(parent: T.Object3D, w: number, h: number, d: number, x: number, y: number, z: number, color: string, radius = .055) {
@@ -139,27 +224,50 @@ export class OfficeWorld {
   private clickable(object: T.Object3D, action: string) { this.objects.push(object); this.pickActions.set(object, action); }
   private label(key: string, title: string, x: number, y: number, z: number, action?: string, number?: number) { this.labels.push({ key, title, point: new T.Vector3(x, y, z), action, number }); }
   private windows(x: number, z: number, w: number) {
-    this.box(this.scene, w, 2.75, .1, x, 2, z + .14, '#a9d9ed');
+    this.panel(this.scene, w, 2.75, x, 2, z + .15, c => {
+      const sky = c.createLinearGradient(0, 0, 0, 384); sky.addColorStop(0, '#cbd6ee'); sky.addColorStop(.6, '#e9deee'); sky.addColorStop(1, '#bed0c7'); c.fillStyle = sky; c.fillRect(0, 0, 768, 384);
+      c.filter = 'blur(5px)';
+      for (let i = 0; i < 14; i++) { const h = 100 + (i * 63) % 190; c.fillStyle = ['#aabbd3', '#b7b1cc', '#c9c1d3'][i % 3]; c.fillRect(i * 62 - 20, 330 - h, 50, h); c.fillStyle = '#f4e4c4'; for (let j = 0; j < 6; j++) c.fillRect(i * 62 - 8, 350 - h + j * 25, 10, 12); }
+      for (let i = 0; i < 17; i++) { c.fillStyle = i % 2 ? '#8ab679' : '#a4c68b'; c.beginPath(); c.arc(i * 52, 360 - (i % 3) * 15, 48, 0, Math.PI * 2); c.fill(); } c.filter = 'none';
+    });
     this.glass(this.scene, w, 2.75, .02, x, 2, z + .23);
     for (let i = 0; i < 4; i++) this.box(this.scene, .055, 2.8, .16, x - w / 2 + i * w / 3, 2, z + .2, '#393743');
   }
   private plant(x: number, z: number, scale = 1, parent: T.Object3D = this.scene, y = 0) {
     this.cylinder(parent, .29 * scale, .55 * scale, x, y + .28 * scale, z, '#ece5dc', .24 * scale);
     this.cylinder(parent, .065 * scale, .9 * scale, x, y + .8 * scale, z, '#766047');
-    for (let i = 0; i < 7; i++) {
-      const a = i * 2.4, leaf = this.sphere(parent, .32 * scale, x + Math.cos(a) * .24 * scale, y + (1 + i * .075) * scale, z + Math.sin(a) * .21 * scale, i % 2 ? '#6e9a59' : '#4f8d62'); leaf.scale.set(1, 1.3, .65);
+    this.cylinder(parent, .22 * scale, .025 * scale, x, y + .55 * scale, z, '#64503f');
+    for (let i = 0; i < 22; i++) {
+      const a = i * 2.4, level = i / 22, reach = .38 * (1 - level * .4) * scale;
+      const leaf = this.sphere(parent, .2 * scale, x + Math.cos(a) * reach, y + (.7 + level * 1.05) * scale, z + Math.sin(a) * reach, ['#589447', '#83ab52', '#416e43', '#a1bc61'][i % 4]); leaf.scale.set(.6, 1.7, .3); leaf.rotation.set(Math.sin(a) * .65, -a, Math.cos(a) * .65);
     }
   }
   private chair(x: number, z: number, facing = 0, parent: T.Object3D = this.scene, color = '#393d51') {
     const g = new T.Group(); g.position.set(x, 0, z); g.rotation.y = facing; parent.add(g);
     this.box(g, .7, .16, .72, 0, .54, 0, color, .09); this.box(g, .7, .7, .15, 0, 1, -.3, color, .1);
     this.cylinder(g, .06, .45, 0, .25, 0, '#7a7b88'); this.box(g, .75, .055, .07, 0, .09, 0, '#555763'); this.box(g, .07, .055, .75, 0, .09, 0, '#555763');
+    for (const side of [-1, 1]) { this.box(g, .065, .3, .06, side * .4, .66, 0, '#57586a'); this.box(g, .11, .07, .43, side * .4, .83, .06, color); }
+    for (let i = 0; i < 5; i++) { const a = i * Math.PI * .4, arm = this.box(g, .055, .055, .4, Math.sin(a) * .2, .13, Math.cos(a) * .2, '#545764'); arm.rotation.y = a; const wheel = this.cylinder(g, .075, .07, Math.sin(a) * .4, .08, Math.cos(a) * .4, '#282a36'); wheel.rotation.z = Math.PI / 2; }
     return g;
   }
   private table(x: number, z: number, w: number, d: number, y = .98) {
     const top = this.box(this.scene, w, .16, d, x, y, z, COLORS.wood, .09);
     for (const dx of [-1, 1]) for (const dz of [-1, 1]) this.box(this.scene, .09, y - .08, .09, x + dx * (w / 2 - .18), y / 2 - .05, z + dz * (d / 2 - .15), '#353548');
     return top;
+  }
+  private cup(x: number, y: number, z: number, color = '#f5eddf') {
+    this.cylinder(this.scene, .085, .17, x, y, z, color); this.cylinder(this.scene, .066, .008, x, y + .088, z, '#71503b');
+    const handle = new T.Mesh(new T.TorusGeometry(.065, .018, 6, 12), this.material(color)); handle.position.set(x + .09, y, z); this.scene.add(handle);
+  }
+  private wallLamp(x: number, z: number, rotation = 0) {
+    const g = new T.Group(); g.position.set(x, 3.36, z); g.rotation.y = rotation; this.scene.add(g);
+    this.box(g, .07, .08, .45, 0, 0, .14, '#353441'); const shade = this.cylinder(g, .085, .18, 0, -.08, .34, '#2f303b'); shade.rotation.x = .6;
+    const light = new T.SpotLight('#ffdc91', 13, 5, .72, .7, 1.3); light.position.set(0, -.12, .4); light.target.position.set(0, -1.4, .04); g.add(light, light.target);
+    const bulb = this.sphere(g, .063, 0, -.17, .39, '#fff2cb'); (bulb.material as T.MeshStandardMaterial).emissive.set('#ffd998');
+  }
+  private woodFloor(x: number, z: number, w: number, d: number) {
+    this.box(this.scene, w, .035, d, x, .085, z, '#b78c63', .015);
+    for (let i = 1; i < Math.ceil(d / .27); i++) this.box(this.scene, w - .03, .006, .008, x, .106, z - d / 2 + i * .27, '#9c7858', 0);
   }
   private monitor(x: number, z: number, rotation = 0, y = 1.28) {
     const g = new T.Group(); g.position.set(x, y, z); g.rotation.y = rotation; this.scene.add(g);
@@ -168,13 +276,28 @@ export class OfficeWorld {
     this.box(g, .06, .25, .06, 0, -.2, 0, '#55576b'); this.box(g, .35, .035, .23, 0, -.3, .02, '#55576b');
   }
   private workTable(x: number, z: number) {
-    this.table(x, z, 3.6, 1.4);
-    for (const side of [-1, 1]) for (const dx of [-.85, .85]) { this.monitor(x + dx, z + side * .08, side < 0 ? Math.PI : 0); this.box(this.scene, .65, .035, .22, x + dx, 1.08, z + side * .48, '#d6d9e1'); this.cylinder(this.scene, .09, .15, x + dx + .46, 1.15, z + side * .48, '#f0e9dc'); }
+    const top = this.table(x, z, 4.4, 1.6), tables = [...new Set(this.layout.desks.map(d => JSON.stringify(d.table)))];
+    this.clickable(top, 'desk-table:' + tables.indexOf(JSON.stringify({ x, z })));
+    for (const dx of [-1.82, 1.82]) {
+      this.box(this.scene, .45, .84, 1.17, x + dx, .51, z, '#494750', .035);
+      for (const side of [-1, 1]) for (let i = 0; i < 3; i++) {
+        this.box(this.scene, .39, .23, .025, x + dx, .29 + i * .25, z + side * .6, '#59565c', .02);
+        this.box(this.scene, .15, .025, .025, x + dx, .34 + i * .25, z + side * .62, '#a29a92');
+      }
+    }
+    for (const side of [-1, 1]) for (const dx of [-1.05, 1.05]) { this.monitor(x + dx, z + side * .08, side < 0 ? Math.PI : 0); this.box(this.scene, .65, .035, .22, x + dx, 1.08, z + side * .58, '#d6d9e1'); this.cup(x + dx + .46, 1.15, z + side * .58); }
     this.box(this.scene, .35, .68, .75, x - 1.3, .4, z, '#343644'); this.plant(x, z - .1, .3, this.scene, 1.07);
+    for (const side of [-1, 1]) for (const dx of [-1.05, 1.05]) {
+      this.box(this.scene, .22, .018, .28, x + dx + .49, 1.075, z + side * .45, '#4c4b62');
+      this.box(this.scene, .08, .04, .12, x + dx + .49, 1.105, z + side * .45, '#9492a4');
+      for (let row = 0; row < 3; row++) for (let key = 0; key < 10; key++) this.box(this.scene, .041, .006, .034, x + dx - .27 + key * .059, 1.101, z + side * .48 - .065 + row * .06, '#888c9b', .003);
+      this.box(this.scene, .21, .018, .28, x + dx - .56, 1.081, z + side * .43, '#9c7ab2');
+      this.box(this.scene, .17, .008, .23, x + dx - .56, 1.094, z + side * .43, '#f0e6d8');
+    }
   }
   private coffee() {
     const z = this.layout.back + 7.4;
-    this.box(this.scene, 2.3, .035, 6.6, -10.65, .075, z, '#bc946b');
+    this.woodFloor(-10.65, z, 2.3, 6.6);
     this.box(this.scene, 1.2, 1.05, 5.2, -11.1, .6, z, '#343545'); this.box(this.scene, 1.45, .12, 5.4, -10.98, 1.16, z, '#eee8de');
     this.box(this.scene, 1.1, 2.3, 1.15, -11, 1.2, z + 2.5, '#d2d9e1', .09);
     this.box(this.scene, .035, .7, .055, -10.42, 1.38, z + 2.1, '#777e8b');
@@ -183,17 +306,30 @@ export class OfficeWorld {
     for (let i = 0; i < 7; i++) this.cylinder(this.scene, .1, .17, -11, 1.33, z - 2.3 + i * .27, ['#ae7ddb', '#48a7a2', '#efc361'][i % 3]);
     this.clickable(this.textPanel('CAFÉ', 1.4, .55, -11.82, 2.65, z + .9, Math.PI / 2), 'copa');
     this.plant(-11.1, z - 2.9, .65);
+    for (let i = 0; i < 6; i++) {
+      const cz = z - 2.2 + i * .82;
+      this.box(this.scene, .04, .83, .76, -10.47, .64, cz, '#4e4c56'); this.box(this.scene, .055, .035, .21, -10.43, .92, cz, '#b9b5b0');
+      this.box(this.scene, .05, .6, .74, -11.82, 1.65, cz, '#e6ddd2');
+    }
+    this.box(this.scene, .33, .02, 2.8, -11.65, 1.94, z - 1, '#cda16e');
+    for (let i = 0; i < 8; i++) this.cup(-11.55, 2.04, z - 2.2 + i * .32, ['#b08ddd', '#f3ce70', '#68bbb7', '#f4e4d1'][i % 4]);
+    this.box(this.scene, .6, .92, .65, -10.7, .55, z + 3.22, '#d5e0e3');
+    const water = this.cylinder(this.scene, .23, .49, -10.7, 1.25, z + 3.22, '#8cc8df', .19); (water.material as T.MeshStandardMaterial).roughness = .18;
+    for (let i = 0; i < 3; i++) this.wallLamp(-11.76, z - 2 + i * 1.8, Math.PI / 2);
   }
   private lounge() {
     const z = this.layout.back;
-    this.box(this.scene, 8, .035, 4.5, -6.1, .065, z + 2.5, '#6654a6', .12);
-    this.box(this.scene, 7.2, .45, 1.25, -6.1, .42, z + 1.35, '#5a47a1', .17);
-    this.box(this.scene, 7.2, .86, .27, -6.1, 1, z + .85, '#6e55b5', .12);
-    for (const x of [-9.55, -2.65]) this.box(this.scene, .3, .72, 1.3, x, .72, z + 1.35, '#47a5af', .14);
-    for (let i = 0; i < 8; i++) this.box(this.scene, .79, .18, .91, -9.05 + i * .84, .7, z + 1.5, '#7963c4', .12);
+    this.box(this.scene, 6.5, .035, 4.5, -6.1, .065, z + 2.5, '#6654a6', .12);
+    this.box(this.scene, 5.2, .45, 1.25, -6.1, .42, z + 1.35, '#5a47a1', .17);
+    this.box(this.scene, 5.2, .86, .27, -6.1, 1, z + .85, '#6e55b5', .12);
+    for (const x of [-8.6, -3.6]) this.box(this.scene, .3, .72, 1.3, x, .72, z + 1.35, '#47a5af', .14);
+    for (let i = 0; i < 4; i++) this.box(this.scene, 1.12, .18, .91, -7.9 + i * 1.2, .7, z + 1.5, '#7963c4', .12);
     for (let i = 0; i < 3; i++) this.box(this.scene, .58, .58, .15, -7.8 + i * 1.4, 1.02, z + 1.2, ['#edbc5c', '#42b1b2', '#b682d9'][i], .12);
     this.table(-6.1, z + 3.15, 2.5, .95, .52); this.cylinder(this.scene, .6, .5, -3.9, .32, z + 3.5, '#9b6bd0');
-    this.plant(-10.4, z + 1.3, 1.1); this.plant(-1.85, z + 1, .9);
+    this.plant(-9.3, z + 1.3, 1.1); this.plant(-2.8, z + 1, .9);
+    this.plant(-6.1, z + 3.15, .28, this.scene, .61); this.cup(-5.35, .7, z + 3.15);
+    this.box(this.scene, .47, .055, .35, -6.85, .65, z + 3.1, '#689eb3');
+    this.box(this.scene, .42, .025, .32, -6.82, .69, z + 3.13, '#f3e5d0');
   }
   private mural() {
     const z = this.layout.back + 3.05;
@@ -206,6 +342,9 @@ export class OfficeWorld {
         c.fillStyle = '#625a6d'; c.beginPath(); c.arc(384, 135, 85, 0, Math.PI * 2); c.fill(); c.beginPath(); c.ellipse(384, 295, 165, 120, 0, 0, Math.PI * 2); c.fill();
         c.fillStyle = '#f9e3ad'; c.fillRect(0, 335, 768, 49);
       }, Math.PI / 2); this.portraits.push(portrait); this.clickable(portrait, 'mural');
+      this.box(this.scene, .05, 1.4, .91, -11.67, 1.95, pz, '#8e652c', .01);
+      portrait.position.x = -11.62;
+      this.wallLamp(-11.75, pz, Math.PI / 2);
     }
   }
   private taskBoard() {
@@ -213,10 +352,14 @@ export class OfficeWorld {
     const board = this.box(this.scene, 7, 2.15, .13, .8, 2.1, z, '#ece9e1', .05); this.clickable(board, 'board');
     for (let i = 0; i < 3; i++) this.box(this.scene, 2.1, .19, .025, -1.45 + i * 2.25, 2.95, z + .08, ['#b49be5', '#f1c777', '#7bbbab'][i]);
     this.scene.add(this.notes);
+    for (const x of [-2.05, .8, 3.65]) this.wallLamp(x, z + .13);
+    this.box(this.scene, 7.12, .09, .24, .8, .98, z + .03, '#b5aba0');
+    for (let i = 0; i < 4; i++) this.box(this.scene, .27, .05, .065, 2 + i * .32, 1.06, z + .15, ['#c56884', '#70bca9', '#7f81c2', '#e7b452'][i]);
     this.textPanel('SABADÃO', .95, .52, 5.1, 2.25, z + .02); this.clickable(this.scene.children[this.scene.children.length - 1], 'sabado');
     this.clickable(this.textPanel('Instagram', 1.4, .6, 7, 3.05, z + .02, 0, '#37284d', '#d1b9ef'), 'instagram');
   }
   setNotes(notes: { col: number; color: string }[]) {
+    if (this.layout.reference) return;
     const key = JSON.stringify(notes); if (this.noteKey === key) return; this.noteKey = key;
     this.notes.clear(); const count = [0, 0, 0];
     for (const note of notes.slice(0, 45)) {
@@ -230,7 +373,7 @@ export class OfficeWorld {
       const panel = this.portraits[i]; if (!panel) return;
       const material = panel.material as T.MeshBasicMaterial, a = { ...DEFAULT_AVATAR, ...winner.avatar };
       if (material.map) { this.resources.delete(material.map); material.map.dispose(); }
-      material.map = this.canvasTexture(384, 512, c => {
+      material.map = this.layout.reference ? this.referencePortrait(winner, i) : this.canvasTexture(384, 512, c => {
         c.fillStyle = ['#cfa6bb', '#9ebbd3', '#99bfa8', '#b9a1d1'][i]; c.fillRect(0, 0, 384, 512);
         c.fillStyle = '#504353'; c.font = 'bold 23px sans-serif'; c.textAlign = 'center'; c.fillText(winner.title, 192, 42, 350);
         c.fillStyle = a.oc; c.beginPath(); c.roundRect(75, 290, 234, 170, 40); c.fill();
@@ -242,6 +385,36 @@ export class OfficeWorld {
       }); material.needsUpdate = true;
     });
   }
+  private referencePortrait(winner: { name: string; avatar: Partial<Avatar>; title: string }, i: number) {
+    const a = { ...DEFAULT_AVATAR, ...winner.avatar }, scene = new T.Scene();
+    scene.background = new T.Color(['#cfa6bb', '#9ebbd3', '#99bfa8', '#b9a1d1'][i]);
+    scene.add(new T.HemisphereLight('#fff1d5', '#9384ab', 2));
+    const light = new T.DirectionalLight('#ffdfad', 3); light.position.set(-3, 5, 5); scene.add(light);
+    this.box(scene, 1.4, .75, .8, 0, .34, 0, a.oc, .16);
+    this.box(scene, .95, 1.04, .85, 0, 1.13, .02, a.skin, .18);
+    for (const side of [-1, 1]) { this.box(scene, .15, .29, .2, side * .49, 1.05, .03, a.skin, .06); this.sphere(scene, .045, side * .23, 1.17, .45, '#302a35'); }
+    this.box(scene, .1, .065, .07, 0, 1.03, .45, a.skin, .03);
+    this.box(scene, .2, .025, .045, 0, .86, .45, '#a36c61', .01);
+    if (a.hs !== 'careca') {
+      this.box(scene, 1.03, .3, .92, 0, 1.62, -.025, a.hair, .14);
+      this.box(scene, .16, .5, .7, -.43, 1.32, -.06, a.hair, .06);
+      if (['longo', 'rabo', 'cacheado'].includes(a.hs)) this.box(scene, 1.02, .8, .27, 0, 1.08, -.4, a.hair, .12);
+    }
+    if (a.beard !== 'nenhuma') this.box(scene, .7, .21, .12, 0, .76, .43, a.hair, .05);
+    const camera = new T.OrthographicCamera(-1.15, 1.15, 1.533, -1.533, .1, 30); camera.position.set(3.3, 2.7, 6); camera.lookAt(0, 1, 0);
+    const target = new T.WebGLRenderTarget(384, 512); target.texture.colorSpace = T.SRGBColorSpace;
+    const previous = this.renderer.getRenderTarget(), clear = this.renderer.getClearColor(new T.Color()), alpha = this.renderer.getClearAlpha();
+    const pixels = new Uint8Array(384 * 512 * 4);
+    try { this.renderer.setRenderTarget(target); this.renderer.render(scene, camera); this.renderer.readRenderTargetPixels(target, 0, 0, 384, 512, pixels); }
+    finally { this.renderer.setRenderTarget(previous); this.renderer.setClearColor(clear, alpha); target.dispose(); }
+    return this.canvasTexture(384, 512, c => {
+      const image = c.createImageData(384, 512);
+      for (let row = 0; row < 512; row++) image.data.set(pixels.subarray((511 - row) * 1536, (512 - row) * 1536), row * 1536);
+      c.putImageData(image, 0, 0);
+      c.fillStyle = '#f5e3ac'; c.fillRect(0, 433, 384, 79); c.fillStyle = '#49362a'; c.font = 'bold 34px sans-serif'; c.textAlign = 'center'; c.fillText(winner.name, 192, 482, 350);
+      c.fillStyle = '#ffeec7'; c.fillRect(0, 0, 384, 40); c.fillStyle = '#5d4730'; c.font = 'bold 22px sans-serif'; c.fillText(winner.title, 192, 29, 350);
+    });
+  }
   private studio() {
     const f = this.layout.front;
     this.box(this.scene, 6.2, .04, 5.2, -8.1, .08, f - 3, '#292b39', .02);
@@ -251,6 +424,19 @@ export class OfficeWorld {
     this.cylinder(this.scene, .025, 1.4, -5.7, .7, f - 1.8, '#545764');
     this.box(this.scene, .52, .36, .4, -7.8, 1.25, f - 1.5, '#333a48'); this.cylinder(this.scene, .035, 1.15, -7.8, .6, f - 1.5, '#555b66');
     for (const dx of [-.4, .4]) { const leg = this.cylinder(this.scene, .025, 1.1, -7.8 + dx / 2, .5, f - 1.5, '#555b66'); leg.rotation.z = dx; }
+    for (const x of [-10.67, -5.53]) {
+      this.cylinder(this.scene, .035, 2.7, x, 1.39, f - 4, '#303542');
+      this.box(this.scene, .65, .06, .45, x, .16, f - 4, '#313644');
+    }
+    const lens = this.cylinder(this.scene, .12, .28, -7.8, 1.27, f - 1.77, '#212c3a'); lens.rotation.x = Math.PI / 2;
+    this.box(this.scene, .3, .19, .035, -7.8, 1.29, f - 1.28, '#6ca9b7');
+    for (let i = 0; i < 3; i++) { const a = i * 2.094; const leg = this.cylinder(this.scene, .022, 1.05, -5.7 + Math.sin(a) * .2, .48, f - 1.8 + Math.cos(a) * .2, '#444854'); leg.rotation.set(Math.cos(a) * .38, 0, -Math.sin(a) * .38); }
+    for (const [x, z] of [[-10.1, f - 1.25], [-6.2, f - .95]]) {
+      this.box(this.scene, .9, .42, .55, x, .33, z, '#3e4454');
+      this.box(this.scene, .85, .045, .51, x, .56, z, '#555e6b');
+      for (const dx of [-.35, .35]) this.box(this.scene, .055, .38, .56, x + dx, .35, z, '#939b9e');
+      this.box(this.scene, .27, .04, .08, x, .6, z, '#242c38');
+    }
   }
   private meeting() {
     const f = this.layout.front;
@@ -261,22 +447,40 @@ export class OfficeWorld {
     for (const x of [.1, 1.7, 3.3]) for (const side of [-1, 1]) this.chair(x, f - 2.8 + side * 1.1, side === 1 ? Math.PI : 0);
     this.plant(-.4, f - .8, .85); this.plant(4.2, f - .8, .85);
     this.monitor(-.72, f - 3.9, Math.PI / 2, 1.8);
+    for (const x of [.3, 1.8, 3.3]) {
+      this.box(this.scene, .55, .035, .38, x, 1.08, f - 2.8, '#7b8699');
+      const screen = this.box(this.scene, .55, .34, .025, x, 1.25, f - 2.92, '#384d67'); screen.rotation.x = -.18;
+      this.cup(x + .37, 1.17, f - 2.6);
+    }
+    // Front glazing and a visible door keep the cutaway readable.
+    this.glass(this.scene, 3.6, 2.7, .035, .9, 1.4, f - .51);
+    this.glass(this.scene, 1.65, 2.7, .035, 3.65, 1.4, f - .51);
+    this.box(this.scene, .045, .34, .045, 2.92, 1.28, f - .43, '#d1b577');
   }
   private brainstorm() {
     const z = this.layout.front - 5.5;
     this.cylinder(this.scene, 2.25, .035, 8.1, .075, z, '#e1b76b');
     this.cylinder(this.scene, 1.3, .14, 8.1, 1, z, '#f4eee1'); this.cylinder(this.scene, .18, .9, 8.1, .5, z, '#77727d');
     for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; this.chair(8.1 + Math.sin(a) * 1.9, z + Math.cos(a) * 1.9, a + Math.PI); this.box(this.scene, .3, .012, .25, 8.1 + Math.sin(a) * .6, 1.08, z + Math.cos(a) * .6, ['#da9bc8', '#92d0be', '#eac47d', '#9fbbdf'][i], 0); }
+    this.box(this.scene, 1.3, 1.3, .07, 10.55, 1.4, z + .9, '#dedee2');
+    for (const x of [10.05, 11.05]) { this.box(this.scene, .04, 1.8, .04, x, .9, z + .9, '#777b87'); this.box(this.scene, .12, .055, .65, x, .08, z + .9, '#777b87'); }
+    for (let i = 0; i < 6; i++) this.box(this.scene, .25, .22, .02, 10.2 + (i % 3) * .34, 1.13 + Math.floor(i / 3) * .35, z + .945, ['#e9bf63', '#a28bd2', '#6cb8a0'][i % 3]);
   }
   private manager() {
     const b = this.layout.back;
-    this.box(this.scene, 5.1, .035, 6.8, 9, .08, b + 3.8, '#b78c63');
+    this.woodFloor(9, b + 3.8, 5.1, 6.8);
     this.box(this.scene, 4.3, .035, 4.5, 8.8, .1, b + 4.1, '#62549b');
     this.glass(this.scene, .035, 2.8, 5.8, 6.3, 1.45, b + 3.5);
     this.glass(this.scene, 3.5, 2.8, .035, 9.8, 1.45, b + 7.15);
     this.table(8.8, b + 4.2, 3.8, 1.3); this.monitor(8.8, b + 4.35, Math.PI); this.chair(8.8, b + 2.95, 0, this.scene, '#6b5a9a');
     this.box(this.scene, 3.5, 2.6, .35, 8.8, 1.5, b + .45, '#8d6549');
     for (let row = 0; row < 3; row++) for (let col = 0; col < 13; col++) this.box(this.scene, .17, .45 + (col % 3) * .07, .3, 7.3 + col * .24, .7 + row * .75, b + .68, ['#b67ba0', '#e4bf6b', '#679d9f', '#7279b4'][col % 4], .01);
+    for (let row = 0; row < 4; row++) this.box(this.scene, 3.55, .07, .5, 8.8, .42 + row * .75, b + .53, '#ab8158');
+    this.cup(7.5, 1.16, b + 4.2); this.box(this.scene, .55, .025, .35, 9.7, 1.08, b + 4.2, '#e5d9ba');
+    this.cylinder(this.scene, .04, 2.2, 11.1, 1.2, b + 3.1, '#777271'); this.cylinder(this.scene, .38, .055, 11.1, .13, b + 3.1, '#8a827d');
+    this.cylinder(this.scene, .42, .32, 11.1, 2.35, b + 3.1, '#f0cd7f', .18);
+    const lamp = new T.PointLight('#ffcf82', 5, 4, 2); lamp.position.set(11.1, 2.13, b + 3.1); this.scene.add(lamp);
+    for (const x of [7.7, 9.25]) { this.box(this.scene, .95, .45, .85, x, .4, b + 6.1, '#b77d87', .14); this.box(this.scene, .95, .7, .18, x, .8, b + 6.45, '#ca929a', .1); }
   }
   private makeActor(state: ActorState): Rig {
     const root = new T.Group(), body = new T.Group(); root.add(body); this.scene.add(root);
@@ -344,7 +548,7 @@ export class OfficeWorld {
         if (distance < .08) actor.path.shift();
       } else root.rotation.y = state.facing;
       const seated = !walking && !actor.path.length && state.sitting;
-      if (seated && state.mode === 'lounge') { root.position.x += (state.target.x - root.position.x) * Math.min(1, dt * 5); root.position.z += (state.target.z - root.position.z) * Math.min(1, dt * 5); }
+      if (seated) { root.position.x += (state.target.x - root.position.x) * Math.min(1, dt * 5); root.position.z += (state.target.z - root.position.z) * Math.min(1, dt * 5); }
       actor.body.position.y = seated ? (state.mode === 'lounge' ? .15 : 0) : walking ? Math.sin(elapsed * 12) * .025 : 0;
       actor.legs.forEach((leg, i) => { leg.rotation.x = seated ? -Math.PI / 2 : walking ? Math.sin(elapsed * 11 + i * Math.PI) * .55 : 0; });
       actor.arms.forEach((arm, i) => { arm.rotation.x = seated ? -.7 : walking ? Math.sin(elapsed * 11 + i * Math.PI + Math.PI) * .45 : 0; });
@@ -352,13 +556,17 @@ export class OfficeWorld {
       actor.robot.visible = state.agents > 0; actor.robot.position.set(.78, .12 + Math.sin(elapsed * 3.5) * .07, .12); actor.robot.rotation.y = -root.rotation.y + .5;
       actor.camera.visible = state.mode === 'capture';
     }
-    this.renderer.render(this.scene, this.camera);
+    if (this.ambientOcclusion.enabled) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
   }
   project(point: T.Vector3) {
     const p = point.clone().project(this.camera); return { x: (p.x + 1) / 2 * this.w, y: (1 - p.y) / 2 * this.h };
   }
   resize() {
     this.w = Math.max(1, this.host.clientWidth); this.h = Math.max(1, this.host.clientHeight);
+    if (this.layout.reference) {
+      this.referenceCamera(); this.renderer.setSize(this.w, this.h, false); this.composer.setSize(this.w, this.h); this.ambientOcclusion.enabled = false; return;
+    }
     const aspect = this.w / this.h;
     // Fit projected corners, including the walls, rather than clipping large teams.
     this.camera.left = -20; this.camera.right = 20; this.camera.top = 20; this.camera.bottom = -20; this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld();
@@ -368,8 +576,34 @@ export class OfficeWorld {
     const span = Math.max((box.max.y - box.min.y) * 1.08, (box.max.x - box.min.x) / aspect * 1.08);
     this.camera.left = center.x - span * aspect / 2; this.camera.right = center.x + span * aspect / 2; this.camera.top = center.y + span / 2; this.camera.bottom = center.y - span / 2;
     this.camera.updateProjectionMatrix(); this.renderer.setSize(this.w, this.h, false);
+    this.composer.setSize(this.w, this.h);
+    // Keep the mobile view light; desktop receives contact shading between objects.
+    this.ambientOcclusion.enabled = this.w >= 700;
   }
   hit(clientX: number, clientY: number): { action?: string; point?: Point } {
+    if (this.layout.reference) {
+      const rect = this.renderer.domElement.getBoundingClientRect(), frame = this.referenceFrame();
+      const u = (clientX - rect.left - frame.x) / frame.scale, v = (clientY - rect.top - frame.y) / frame.scale;
+      for (const [id, actor] of this.actors) {
+        const p = this.project(actor.root.position.clone().add(new T.Vector3(0, 1.1, 0)));
+        if (Math.hypot(clientX - rect.left - p.x, clientY - rect.top - p.y) < 20 * frame.scale) return { action: 'person:' + id };
+      }
+      if (u > 935 && u < 1165 && v > .48 * (u - 935) + 205 && v < .48 * (u - 935) + 308) return { action: 'board' };
+      if (u > 340 && u < 584 && v > 250 - (u - 340) * .48 && v < 370 - (u - 340) * .48) return { action: 'mural' };
+      const top = referencePoint(u, v + 53), tables = [...new Map(this.layout.desks.map(d => [JSON.stringify(d.table), d.table])).values()];
+      for (let i = 0; i < tables.length; i++) if (Math.abs(top.x - tables[i].x) < 2.2 && Math.abs(top.z - tables[i].z) < .8) return { action: 'desk-table:' + i };
+      if (((u - 1034) / 83) ** 2 + ((v - 675) / 53) ** 2 < 1) return { action: 'brainstorm' };
+      const studio = [[298,535],[451,461],[614,645],[516,704]]; let inside = false;
+      for (let i = 0, j = studio.length - 1; i < studio.length; j = i++) {
+        const [xi, yi] = studio[i], [xj, yj] = studio[j];
+        if ((yi > v) !== (yj > v) && u < (xj - xi) * (v - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      if (inside) return { action: 'studio' };
+      const p = referencePoint(u, v);
+      const seat = this.layout.desks.find(d => Math.hypot(d.x - p.x, d.z - p.z) < .55);
+      if (seat) return { action: 'desk-table:' + tables.findIndex(t => t.x === seat.table.x && t.z === seat.table.z) };
+      return Math.abs(p.x) <= 11.7 && Math.abs(p.z) <= 9.2 ? { point: p } : {};
+    }
     const rect = this.renderer.domElement.getBoundingClientRect(), ray = new T.Raycaster();
     ray.setFromCamera(new T.Vector2((clientX - rect.left) / rect.width * 2 - 1, 1 - (clientY - rect.top) / rect.height * 2), this.camera);
     const hit = ray.intersectObjects(this.objects, true)[0];
@@ -381,6 +615,7 @@ export class OfficeWorld {
   dispose() {
     this.scene.traverse(object => { if (object instanceof T.Mesh || object instanceof T.Sprite) { if (object instanceof T.Mesh) object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach(m => m.dispose()); } });
     this.resources.forEach(t => t.dispose()); this.materials.forEach(m => m.dispose()); this.geometries.forEach(g => g.dispose());
+    this.composer.passes.forEach(pass => pass.dispose()); this.composer.dispose();
     this.renderer.dispose(); this.renderer.domElement.remove();
   }
 }

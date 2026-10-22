@@ -3,12 +3,13 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  server: { watch: { ignored: ['**/design/qa/**'] } },
   optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['icon.svg', 'scenery/office-reference-clean-v2.png'],
       manifest: {
         name: 'Sala 8-bit',
         short_name: 'Sala 8-bit',
@@ -24,7 +25,7 @@ export default defineConfig({
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
-      workbox: { navigateFallbackDenylist: [/^\/auth/], globIgnores: ['**/postgres*', '**/*.wasm', '**/*.data', '**/*.tar.gz'] }
+      workbox: { maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, navigateFallbackDenylist: [/^\/auth/], globIgnores: ['**/postgres*', '**/*.wasm', '**/*.data', '**/*.tar.gz'] }
     })
   ]
 });

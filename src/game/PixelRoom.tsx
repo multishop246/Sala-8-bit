@@ -46,6 +46,9 @@ export interface RoomProps {
   onMeetingRoom?: () => void;
   onBoss?: () => void;
   onAttention?: (fromUserId: string) => void;
+  onStudio?: () => void;
+  onBrainstorm?: () => void;
+  onOwnDesk?: () => void;
 }
 
 const pct = (v: number, t: number) => `${(v / t) * 100}%`;

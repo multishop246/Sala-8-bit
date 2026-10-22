@@ -86,6 +86,7 @@ export const createTask = (wsId: string, t: NewTask) => rpc<Task>('create_task',
   p_dir_to: t.dir_to, p_due_date: t.due_date, p_due_time: t.due_time, p_est: t.est_min
 });
 export const startTask = (id: string) => rpc('start_task', { p_task: id });
+export const setRoomActivity = (wsId: string, activity: import('./types').RoomActivity, taskId?: string) => rpc('set_room_activity', { p_ws: wsId, p_activity: activity, p_task: taskId ?? null });
 export const setActiveTask = (id: string) => rpc('set_active_task', { p_task: id });
 export const completeTask = (id: string) => rpc('complete_task', { p_task: id });
 export const returnTask = (id: string) => rpc('return_task', { p_task: id });

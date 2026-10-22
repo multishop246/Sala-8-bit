@@ -10,8 +10,11 @@ export const LOUNGE_AFTER_MS = 300_000;
 export function destinationMode(input: {
   state: MemberState; capturing: boolean; agents: number; idleSeconds: number | null;
   lastInputAt: number; movedAt: number; target: Point | null; now: number;
-}): 'away' | 'capture' | 'lounge' | 'roam' | 'desk' {
+  activity?: 'desk' | 'recording' | 'brainstorm' | null;
+}): 'away' | 'capture' | 'brainstorm' | 'lounge' | 'roam' | 'desk' {
   if (input.state !== 'trabalhando') return 'away';
+  if (input.activity === 'recording') return 'capture';
+  if (input.activity === 'brainstorm') return 'brainstorm';
   const inactive = input.idleSeconds === null ? input.now - input.lastInputAt : input.idleSeconds * 1000;
   if (!input.capturing && !input.agents && inactive >= LOUNGE_AFTER_MS) return 'lounge';
   if (input.target && input.now - Math.max(input.lastInputAt, input.movedAt) < RETURN_AFTER_MS) return 'roam';

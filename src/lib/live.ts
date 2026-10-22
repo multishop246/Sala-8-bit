@@ -5,7 +5,7 @@ import { isDemo } from './supabase';
 const api: typeof real = isDemo ? demo : real;
 export const {
   loadLive, subscribeLive, setState, startMeeting, joinMeeting, leaveMeeting, callAttention, ackAttention,
-  createTask, startTask, setActiveTask, completeTask, returnTask, deleteTask, contestTask, voteContest,
+  createTask, startTask, setRoomActivity, setActiveTask, completeTask, returnTask, deleteTask, contestTask, voteContest,
   requestTransfer, answerTransfer, requestHelp, answerHelp, sendMessage, markRead,
   setSaturday, setInstagram, gloryScores, daySummary, myTimeLog, createAgentToken, dayApps, backendInfo
 } = api;

@@ -79,6 +79,7 @@ interface LiveCtx {
     sendMessage: (to: string, task: string, text: string) => Promise<boolean>;
     markRead: (from: string) => Promise<boolean>;
     setState: (s: MemberState) => Promise<boolean>;
+    setRoomActivity: (activity: import('../lib/types').RoomActivity, taskId?: string) => Promise<boolean>;
     startMeeting: (subject: string, members: string[], visitors: number, outsiders: number) => Promise<boolean>;
     joinMeeting: (id: string) => Promise<boolean>;
     leaveMeeting: () => Promise<boolean>;
@@ -187,16 +188,17 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       const st = status?.state || 'fora';
       const shown: MemberState = st === 'encerrado' ? 'encerrado' : on ? (st === 'fora' ? 'trabalhando' : st) : (st === 'cafe' || st === 'almoco' ? st : 'fora');
       const mine = (snap?.pauses || []).filter(p => p.user_id === m.user_id);
-      const capturing = !!snap?.board.tasks.some(t => t.id === status?.active_task_id && t.col === 'fazendo' && t.etapa === 'captacao');
+      const capturing = shown === 'trabalhando' && (status?.room_activity === 'recording' || (status?.room_activity == null && !!snap?.board.tasks.some(t => t.id === status?.active_task_id && t.col === 'fazendo' && t.etapa === 'captacao')));
+      const offComputer = capturing || status?.room_activity === 'brainstorm';
       const cafeUsed = mine.filter(p => p.kind === 'cafe').reduce((s, p) => s + ((p.ended_at ? new Date(p.ended_at).getTime() : now) - new Date(p.started_at).getTime()) / 1000, 0);
       return {
         member: m, status, online: on, device: online[m.user_id]?.device || (agentOn ? 'computador' : status?.device || 'computador'), shown,
-        since: status ? new Date(status.since).getTime() : now, cafeUsed, cafeLeft: budget - cafeUsed,
+        since: status ? new Date(shown === 'trabalhando' && status.room_activity_since && ['recording','brainstorm'].includes(status.room_activity || '') ? status.room_activity_since : status.since).getTime() : now, cafeUsed, cafeLeft: budget - cafeUsed,
         lunchDone: mine.some(p => p.kind === 'almoco'),
         meeting: status?.meeting_id ? meetingsOpen.find(x => x.id === status.meeting_id) || null : null,
         agentOn, app: agentOn ? status?.app_now || null : null, appCat: agentOn ? status?.app_cat || null : null,
         music: agentOn && !!status?.music, agents: agentOn ? status?.agents || 0 : 0,
-        idle: !capturing && agentOn && (status?.idle_seconds != null ? status.idle_seconds >= 300 : !!status?.idle) && !(status?.agents && status.agents > 0), capturing,
+        idle: !offComputer && agentOn && (status?.idle_seconds != null ? status.idle_seconds >= 300 : !!status?.idle) && !(status?.agents && status.agents > 0), capturing,
         scene: m.user_id === me.user_id ? room.scene : online[m.user_id]?.scene
       };
     });
@@ -245,6 +247,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         sendMessage: (to, task, text) => wrap(() => live.sendMessage(ws.id, to, task, text))(),
         markRead: from => wrap(() => live.markRead(ws.id, from))(),
         setState: s => wrap(() => live.setState(ws.id, s, todayStr(), device))(),
+        setRoomActivity: (activity, taskId) => wrap(async () => { await live.setRoomActivity(ws.id, activity, taskId); room.reset(); }, activity === 'recording' ? 'Gravando · clique na sua mesa para encerrar' : activity === 'brainstorm' ? 'Brainstorm · clique na sua mesa para encerrar' : 'De volta à mesa')(),
         startMeeting: (subject, ids, v, o) => wrap(() => live.startMeeting(ws.id, subject, ids, v, o), 'Reunião sinalizada')(),
         joinMeeting: id => wrap(() => live.joinMeeting(id), 'Você entrou na reunião')(),
         leaveMeeting: () => wrap(() => live.leaveMeeting(ws.id), 'Você saiu da reunião')(),
@@ -252,11 +255,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         ackAttention: from => wrap(() => live.ackAttention(ws.id, from))()
       }
     };
-  }, [snap, online, now, members, ws, me.user_id, device, reload, toast, titles, room.scene, room.move]);
+  }, [snap, online, now, members, ws, me.user_id, device, reload, toast, titles, room.scene, room.move, room.reset]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+export const workLabel = (view: PersonView) => view.shown !== 'trabalhando' ? null : view.capturing ? 'Gravando' : view.status?.room_activity === 'brainstorm' ? 'Brainstorm' : null;
 export const STATE_LABEL: Record<MemberState, string> = {
   fora: 'Fora do sistema', trabalhando: 'No escritório', cafe: 'No café', almoco: 'Almoçando', reuniao: 'Em reunião', pausa_gestor: 'Pausa do gestor', encerrado: 'Encerrou o expediente'
 };

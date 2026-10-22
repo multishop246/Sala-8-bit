@@ -468,6 +468,52 @@ await t('0.7 · captação continua produtiva sem mouse; edição volta a medir 
   await send(299);
   if((await q(`select idle from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0].idle) throw new Error('Ociosidade antecipada antes de cinco minutos');
 });
+await t('0.7.1 · estúdio inicia registro sem tarefa e voltar à mesa retoma a edição', async () => {
+  const previous=(await q(`select active_task_id from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0].active_task_id;
+  await as(V2,()=>q(`select set_room_activity($1,'recording')`,[w5.id]));
+  const st=(await q(`select room_activity,active_task_id from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  if(st.room_activity!=='recording'||st.active_task_id!==null)throw new Error(JSON.stringify(st));
+  const live=(await asAnon(()=>q(`select agent_live($1,'{"cat":"idle","idle":true,"idle_seconds":1800}') r`,[tok]))).rows[0].r;
+  if(!live.capturing)throw new Error('Gravação manual ficou ociosa');
+  await as(V2,()=>q(`select set_room_activity($1,'desk')`,[w5.id]));
+  const after=(await q(`select room_activity,active_task_id from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  if(after.room_activity!=='desk'||after.active_task_id!==previous)throw new Error(JSON.stringify(after));
+  if((await q(`select count(*)::int n from room_activity_sessions where user_id=$1 and ended_at is null`,[V2])).rows[0].n)throw new Error('Sessão não encerrou');
+});
+await t('0.7.1 · clique no estúdio inicia captação e mesa pausa sem concluir etapa', async () => {
+  const task=(await q(`insert into tasks(workspace_id,title,creator,etapa,due_date) values($1,'Gravar campanha',$2,'captacao',current_date) returning id`,[w5.id,V2])).rows[0].id;
+  await as(V2,()=>q(`select set_room_activity($1,'recording',$2)`,[w5.id,task]));
+  const st=(await q(`select room_activity,active_task_id from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  const running=(await q(`select col,running_since from tasks where id=$1`,[task])).rows[0];
+  if(st.room_activity!=='recording'||st.active_task_id!==task||running.col!=='fazendo'||!running.running_since)throw new Error(JSON.stringify({st,running}));
+  await as(V2,()=>q(`select set_room_activity($1,'desk')`,[w5.id]));
+  const paused=(await q(`select col,etapa,running_since from tasks where id=$1`,[task])).rows[0];
+  if(paused.col!=='fazendo'||paused.etapa!=='captacao'||paused.running_since)throw new Error(JSON.stringify(paused));
+});
+await t('0.7.1 · brainstorm é produtivo, termina na mesa e não altera outra pessoa', async () => {
+  const other=(await q(`select room_activity from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V1])).rows[0].room_activity;
+  await as(V2,()=>q(`select set_room_activity($1,'brainstorm')`,[w5.id]));
+  await asAnon(()=>q(`select agent_live($1,'{"cat":"idle","idle":true,"idle_seconds":1800}')`,[tok]));
+  if((await q(`select idle from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0].idle)throw new Error('Brainstorm ficou ocioso');
+  const minute=new Date().toISOString();
+  await asAnon(()=>q(`select agent_report($1,$2::jsonb)`,[tok,JSON.stringify([{m:minute,cat:'idle',app:'Explorer',productive_weight:0,base_weight:0}])]));
+  const log=(await q(`select category,app,productive_weight::float8 w from activity_minutes where workspace_id=$1 and user_id=$2 and minute=date_trunc('minute',$3::timestamptz)`,[w5.id,V2,minute])).rows[0];
+  if(log.category!=='prod'||log.app!=='Brainstorm'||log.w!==1)throw new Error(JSON.stringify(log));
+  await as(V2,()=>q(`select set_room_activity($1,'desk')`,[w5.id]));
+  if((await q(`select room_activity from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V1])).rows[0].room_activity!==other)throw new Error('Alterou colega');
+  await as(A,()=>expectErr(()=>q(`select set_room_activity($1,'recording')`,[w5.id]),/não faz parte/));
+});
+await t('0.7.1 · pausa encerra atividade e histórico atrasado não muda minutos anteriores', async () => {
+  await as(V2,()=>q(`select set_room_activity($1,'recording')`,[w5.id]));
+  await as(V2,()=>q(`select set_state($1,'cafe',current_date)`,[w5.id]));
+  const s=(await q(`select room_activity from statuses where workspace_id=$1 and user_id=$2`,[w5.id,V2])).rows[0];
+  if(s.room_activity!==null)throw new Error('Atividade continuou durante pausa');
+  if((await q(`select count(*)::int n from room_activity_sessions where user_id=$1 and ended_at is null`,[V2])).rows[0].n)throw new Error('Sessão não fechou');
+  await as(V2,()=>q(`select set_state($1,'trabalhando',current_date)`,[w5.id]));
+  const old=new Date(Date.now()-23*60000).toISOString();
+  await asAnon(()=>q(`select agent_report($1,$2::jsonb)`,[tok,JSON.stringify([{m:old,cat:'idle',productive_weight:0,base_weight:0}])]));
+  if((await q(`select category from activity_minutes where workspace_id=$1 and user_id=$2 and minute=date_trunc('minute',$3::timestamptz)`,[w5.id,V2,old])).rows[0].category!=='idle')throw new Error('Alterou minuto anterior');
+});
 await t('0.5 · depois de encerrar o expediente o app para de gravar', async () => {
   await as(V2, () => q(`select set_state($1,'encerrado',current_date)`, [w5.id]));
   const r = await asAnon(async () => (await q(`select agent_report($1, $2::jsonb) r`, [tok, JSON.stringify([{ m: new Date().toISOString(), app: 'Figma', cat: 'prod' }])])).rows[0].r);

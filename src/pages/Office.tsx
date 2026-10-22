@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar } from '../game/Avatar';
 import { Room } from '../game/Room';
-import { fmtClock, fmtDur, STATE_COLOR, STATE_LABEL, useLive, type PersonView } from '../live/LiveProvider';
+import { fmtClock, fmtDur, STATE_COLOR, STATE_LABEL, useLive, workLabel, type PersonView } from '../live/LiveProvider';
 import type { MemberState } from '../lib/types';
 import { useWs } from '../lib/workspace';
 import { DayPanel } from '../dash/DayPanel';
@@ -66,6 +66,16 @@ export function Office() {
   const activeTask = (uid: string) => { const a = L.view(uid)?.status?.active_task_id; return L.board.tasks.find(t => t.id === a && t.col === 'fazendo'); };
   const goTab = (t: Tab) => { setTab(t); setTimeout(() => document.getElementById('tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
   const person = (id: string) => setDlg(id === me.user_id && me.kind === 'membro' ? { kind: 'mydesk' } : { kind: 'person', id });
+  const studio = async () => {
+    const current = activeTask(me.user_id);
+    const candidates = L.board.tasks.filter(t => t.etapa === 'captacao' && (t.col === 'fazendo' && t.owner === me.user_id || t.col === 'afazer' && (t.dir_to === me.user_id || t.linked_to === me.user_id)));
+    const task = current?.etapa === 'captacao' ? current : candidates.length === 1 ? candidates[0] : undefined;
+    await L.act.setRoomActivity('recording', task?.id);
+  };
+  const ownDesk = async () => {
+    if (mine?.capturing || mine?.status?.room_activity === 'brainstorm') await L.act.setRoomActivity('desk');
+    else setDlg({ kind: 'mydesk' });
+  };
 
   return (
     <>
@@ -85,7 +95,7 @@ export function Office() {
                 <Avatar avatar={L.look(v.member)} crown={v.member.kind === 'gestor'} size={30} />
                 <span className="who"><b>{v.member.display_name}{v.member.user_id === me.user_id && <span className="chip acc" style={{ marginLeft: 6 }}>você</span>}</b>{L.titles[v.member.user_id] && <span className="gmain small">★ {TITLES[L.titles[v.member.user_id]].n}</span>}
                   <span className="state"><i style={{ background: v.shown === 'fora' || v.shown === 'encerrado' ? '#555c70' : STATE_COLOR[v.shown] }} />
-                    {v.member.kind === 'gestor' && v.shown === 'trabalhando' ? 'No escritório' : label(v.shown)}{v.online && v.device === 'celular' ? ' · celular' : ''}</span></span>
+                    {workLabel(v) || (v.member.kind === 'gestor' && v.shown === 'trabalhando' ? 'No escritório' : label(v.shown))}{v.online && v.device === 'celular' ? ' · celular' : ''}</span></span>
                 <span className="small muted mono">{v.shown === 'cafe' ? (v.cafeLeft < 0 ? `+${Math.ceil(-v.cafeLeft / 60)}m` : fmtClock(v.cafeLeft)) : v.shown !== 'fora' ? fmtDur(L.now - v.since) : ''}</span>
               </button>))}
             <p className="small muted" style={{ marginTop: 8 }}>{freeDesks} {freeDesks === 1 ? 'mesa livre' : 'mesas livres'} de {ws.desks}.
@@ -104,7 +114,8 @@ export function Office() {
               sabado: ready.filter(m => m.kind === 'membro').map(m => ({ name: m.display_name || '', works: L.saturdays.find(x => x.user_id === m.user_id && x.day === sat)?.works ?? null })),
               onSabado: () => setDlg({ kind: 'sabado' }), onInstagram: () => setDlg({ kind: 'instagram' }), onMural: () => goTab('mural'), onBoard: () => { setOpenTask(null); setBoardPopup(true); }
             }}
-            onPerson={person} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention} />
+            onPerson={person} onCopa={copa} onMeetingRoom={meetingRoom} onBoss={boss} onAttention={attention}
+            onStudio={studio} onBrainstorm={() => { void L.act.setRoomActivity('brainstorm'); }} onOwnDesk={ownDesk} />
           <div className="panel" id="tabs">
             <div className="tabs" role="tablist">
               <button role="tab" aria-selected={tab === 'quadro'} onClick={() => setTab('quadro')}>Quadro de tarefas</button>
@@ -117,7 +128,7 @@ export function Office() {
               : tab === 'mural' ? <MuralTab />
               : <Chat withUser={chatWith} setWithUser={id => { setChatWith(id); setPresetTask(null); }} presetTask={presetTask} onOpenTask={id => { setTab('quadro'); setOpenTask(id); }} />}
           </div>
-          <p className="small muted">Clique na <b>copa</b> para pausar, na <b>sala de reunião</b> para sinalizar uma reunião{L.gestorName ? <>, na <b>mesa de {L.gestorName}</b> para a pausa do gestor</> : null} e em um colega para ver o status ou chamar a atenção.</p>
+          <p className="small muted">Clique no <b>estúdio</b> para gravar ou na <b>mesa de brainstorm</b> para iniciar a atividade. Clique na <b>sua mesa</b> para encerrar e voltar ao computador. Use a <b>copa</b> para pausar e a <b>sala de reunião</b> para sinalizar uma reunião.</p>
         </section>
       </div>
 
@@ -158,7 +169,7 @@ function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, onReport, onDesk, 
       <div className="me-head">
         <Avatar avatar={L.look(m)} crown={gestor} size={40} />
         <div><b>{m.display_name}</b>
-          <span className="state"><i style={{ background: STATE_COLOR[s] }} />{gestor && s === 'trabalhando' ? 'No escritório · acompanhando' : label(s)} · {fmtDur(L.now - view.since)}</span></div>
+          <span className="state"><i style={{ background: STATE_COLOR[s] }} />{workLabel(view) || (gestor && s === 'trabalhando' ? 'No escritório · acompanhando' : label(s))} · {fmtDur(L.now - view.since)}</span></div>
       </div>
       {!gestor && <div className="kv">
         <div><span>Café restante hoje</span><b className={over ? 'over' : ''}>{over ? `+${Math.ceil(-view.cafeLeft / 60)} min` : fmtClock(view.cafeLeft)}</b></div>
@@ -167,6 +178,7 @@ function MyCard({ view, label, onCopa, onMeet, onBoss, onEnd, onReport, onDesk, 
       {!gestor && <NowTask userId={m.user_id} />}
       {over && !gestor && <p className="small" style={{ color: '#ff9aa8' }}>O café passou do limite do dia. O tempo extra conta como distração.</p>}
       <div className="btns">
+        {workLabel(view) && <button className="cta" onClick={() => L.act.setRoomActivity('desk')}>Voltar à minha mesa</button>}
         {ended ? <><button className="cta" onClick={() => L.act.setState('trabalhando')}>Voltar ao trabalho</button><button className="ghost" onClick={onReport}>Relatório do dia</button></> : <>
           {!gestor && <button className={s === 'cafe' || s === 'almoco' ? 'cta' : 'ghost'} onClick={onCopa}>{s === 'cafe' ? 'Voltar do café' : s === 'almoco' ? 'Voltar do almoço' : 'Ir para a copa'}</button>}
           <button className={inMeeting ? 'cta' : 'ghost'} onClick={onMeet}>{inMeeting ? 'Sair da reunião' : 'Sinalizar reunião'}</button>
@@ -260,10 +272,12 @@ function NowTask({ userId, onOpen }: { userId: string; onOpen?: (id: string) => 
   const cat = useMemo(() => catOf(catalog), [catalog]);
   const active = L.view(userId)?.status?.active_task_id;
   const t = L.board.tasks.find(x => x.id === active && x.col === 'fazendo');
+  const activity = L.view(userId)?.status?.room_activity;
   return (
     <div className="nowtask">
       <span className="lbl">Executando agora</span>
-      {t ? <Card t={t} cat={cat} compact onOpen={() => onOpen?.(t.id)} /> : <p className="small muted">Nenhuma tarefa em execução.</p>}
+      {activity === 'recording' || activity === 'brainstorm' ? <p className="small">{activity === 'recording' ? 'Gravando no estúdio' : 'Brainstorm'} · tempo em andamento até voltar à mesa.</p> : null}
+      {t ? <Card t={t} cat={cat} compact onOpen={() => onOpen?.(t.id)} /> : activity === 'recording' || activity === 'brainstorm' ? null : <p className="small muted">Nenhuma tarefa em execução.</p>}
     </div>
   );
 }

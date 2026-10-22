@@ -48,5 +48,6 @@ export function useRoomPresence(identity: string) {
     const now = Date.now(); current.current = { target, movedAt: now, lastInputAt: now, idle: false }; commit(true);
   }, [commit]);
   const bind = useCallback((fn: (s: RoomPresence) => void) => { publisher.current = fn; fn(current.current); }, []);
-  return { scene: current.current, move, bind };
+  const reset = useCallback(() => { current.current = initial(); commit(true); }, [commit]);
+  return { scene: current.current, move, bind, reset };
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { PixelRoom, type RoomProps } from './PixelRoom';
-import { officeLayout, loungeSeat } from './office-layout';
+import { officeLayout, loungeSeat, REFERENCE_SPOTS, referencePoint } from './office-layout';
 import { destinationMode, findPath, type Point } from './movement';
 import type { ActorState, OfficeWorld } from './world3d';
 import { STATE_COLOR } from '../live/LiveProvider';
@@ -24,6 +24,15 @@ export function Room(props: RoomProps) {
     let last = performance.now(), lastSync = -1;
     const activate = (action: string) => {
       const p = latest.current, l = p.live;
+      if (action.startsWith('desk-table:')) {
+        const own = p.members.find(m => m.user_id === l?.meId), ownDesk = layout.desks.find(d => d.n === own?.desk);
+        const table = [...new Set(layout.desks.map(d => JSON.stringify(d.table)))][Number(action.slice(11))];
+        if (ownDesk && JSON.stringify(ownDesk.table) === table) p.onOwnDesk?.();
+        else { const spot = layout.desks.find(d => JSON.stringify(d.table) === table), member = p.members.find(m => m.desk === spot?.n); if (member) p.onPerson?.(member.user_id); }
+        return;
+      }
+      if (action === 'studio' && p.onStudio) { p.onStudio(); return; }
+      if (action === 'brainstorm' && p.onBrainstorm) { p.onBrainstorm(); return; }
       if (action.startsWith('person:')) { p.onPerson?.(action.slice(7)); return; }
       if (action === 'board') l?.onBoard?.();
       else if (action === 'copa') p.onCopa?.();
@@ -33,7 +42,7 @@ export function Room(props: RoomProps) {
       else if (action === 'instagram' && l?.wall?.instagram != null) l.onInstagram?.();
       else if (action === 'sabado' && l?.wall?.sabadao) l.onSabado?.();
       else if (['lounge', 'studio', 'brainstorm'].includes(action)) {
-        const target = action === 'lounge' ? { x: -6.2, z: layout.back + 4.3 } : action === 'studio' ? { x: -7.1, z: layout.front - 2.7 } : { x: 6.2, z: layout.front - 4.4 };
+        const target = layout.reference ? REFERENCE_SPOTS[action === 'lounge' ? 'loungeWalk' : action === 'studio' ? 'capture' : 'brainstorm'] : action === 'lounge' ? { x: -6.2, z: layout.back + 4.3 } : action === 'studio' ? { x: -7.1, z: layout.front - 2.7 } : { x: 6.2, z: layout.front - 4.4 };
         l?.moveCharacter?.(target);
       }
     };
@@ -65,31 +74,32 @@ export function Room(props: RoomProps) {
         const actorsSeen = new Set<string>();
         if (time - lastSync > 200) {
           lastSync = time;
-          let cafe = 0, meeting = 0, lounge = 0, boss = 0, capture = 0;
+          let cafe = 0, meeting = 0, lounge = 0, boss = 0, capture = 0, brainstorm = 0;
           for (const m of p.members) {
             const v = l?.views.find(v => v.member.user_id === m.user_id);
             if (l && (!v || ['fora', 'encerrado', 'almoco'].includes(v.shown))) continue;
             const desk = layout.desks.find(d => d.n === m.desk);
-            let target: Point = m.kind === 'gestor' ? { x: 8.8, z: layout.back + 2.95 } : desk || { x: 0, z: 0 };
-            let sitting = true, facing = m.kind === 'gestor' ? 0 : Math.PI, mode = 'desk';
+            let target: Point = m.kind === 'gestor' ? layout.reference ? REFERENCE_SPOTS.manager : { x: 8.8, z: layout.back + 2.95 } : desk || { x: 0, z: 0 };
+            let sitting = true, facing = m.kind === 'gestor' ? 0 : desk?.facing ?? Math.PI, mode = 'desk';
             if (v && l) {
               const scene = v.scene;
               mode = destinationMode({ state: v.shown, capturing: v.capturing || !!l.capturing?.(m.user_id), agents: v.agents,
                 idleSeconds: v.agentOn && v.status?.idle_seconds != null ? v.status.idle_seconds : scene?.idle || v.idle ? 300 : null, lastInputAt: scene?.lastInputAt ?? Date.now(),
-                movedAt: scene?.movedAt ?? 0, target: scene?.target ?? null, now: Date.now() });
+                movedAt: scene?.movedAt ?? 0, target: scene?.target ?? null, now: Date.now(), activity: v.status?.room_activity });
               if (mode === 'roam' && scene?.target) { target = scene.target; sitting = false; }
               else if (mode === 'lounge') { target = loungeSeat(lounge++, layout.back); facing = 0; }
-              else if (mode === 'capture') { target = { x: -9.2 + (capture++ % 3) * 1.15, z: layout.front - 2.5 }; sitting = false; facing = .5; }
-              if (v.shown === 'cafe') { target = { x: -9.5, z: layout.back + 6 + cafe++ * .8 }; sitting = false; facing = -Math.PI / 2; }
-              else if (v.shown === 'reuniao') { const i = meeting++; target = { x: .1 + (i % 3) * 1.6, z: layout.front - 2.8 + (i < 3 ? 1.1 : -1.1) }; facing = i < 3 ? Math.PI : 0; }
-              else if (v.shown === 'pausa_gestor') { target = { x: 7.1 + (boss++ % 3) * .9, z: layout.back + 5.6 }; sitting = false; facing = Math.PI; }
+              else if (mode === 'brainstorm') { const i = brainstorm++; target = layout.reference ? referencePoint(979 + (i % 2) * 120, 722 + Math.floor(i / 2) * 35) : { x: 8.1, z: layout.front - 3.7 }; facing = Math.PI; }
+              else if (mode === 'capture') { const i = capture++; target = layout.reference ? referencePoint(405 + (i % 3) * 37, 593 + (i % 3) * 18) : { x: -9.2 + (i % 3) * 1.15, z: layout.front - 2.5 }; sitting = false; facing = .5; }
+              if (v.shown === 'cafe') { const i = cafe++; target = layout.reference ? referencePoint(298 + i * 22, 459 + i * 12) : { x: -9.5, z: layout.back + 6 + i * .8 }; sitting = false; facing = -Math.PI / 2; }
+              else if (v.shown === 'reuniao') { const i = meeting++; target = layout.reference ? REFERENCE_SPOTS.meeting[i % 6] : { x: .1 + (i % 3) * 1.6, z: layout.front - 2.8 + (i < 3 ? 1.1 : -1.1) }; facing = i < 3 ? Math.PI : 0; }
+              else if (v.shown === 'pausa_gestor') { const i = boss++; target = layout.reference ? referencePoint(1226 + i * 30, 657 + i * 14) : { x: 7.1 + (i % 3) * .9, z: layout.back + 5.6 }; sitting = false; facing = Math.PI; }
             }
             modeById.current.set(m.user_id, mode);
             states.push({ id: m.user_id, avatar: l?.look?.(m) || m.avatar, target, sitting, facing, music: !!v?.music, agents: v?.agents || 0, crown: m.kind === 'gestor', mode });
           }
           if (p.pick?.selected) { const d = layout.desks.find(d => d.n === p.pick?.selected); if (d) states.push({ id: 'preview', avatar: p.pick.me.avatar, target: d, sitting: true, facing: d.facing, music: false, agents: 0, crown: false, mode: 'desk' }); }
           const guests = l?.meetings[0];
-          for (let i = 0; i < Math.min(guests ? guests.visitors + guests.outsiders : 0, 6 - meeting); i++) states.push({ id: 'guest-' + i, avatar: { oc: '#a193b7' }, target: { x: .1 + ((i + meeting) % 3) * 1.6, z: layout.front - 2.8 + (i + meeting < 3 ? 1.1 : -1.1) }, sitting: true, facing: i + meeting < 3 ? Math.PI : 0, music: false, agents: 0, crown: false, mode: 'guest' });
+          for (let i = 0; i < Math.min(guests ? guests.visitors + guests.outsiders : 0, 6 - meeting); i++) states.push({ id: 'guest-' + i, avatar: { oc: '#a193b7' }, target: layout.reference ? REFERENCE_SPOTS.meeting[(i + meeting) % 6] : { x: .1 + ((i + meeting) % 3) * 1.6, z: layout.front - 2.8 + (i + meeting < 3 ? 1.1 : -1.1) }, sitting: true, facing: i + meeting < 3 ? Math.PI : 0, music: false, agents: 0, crown: false, mode: 'guest' });
           w.sync(states, l?.meId || 'preview'); w.setNotes(l?.wall?.notes || []);
           w.setGlory(Object.keys(TITLES).map(cat => { const id = Object.keys(l?.titles || {}).find(id => l?.titles?.[id] === cat); const member = p.members.find(m => m.user_id === id); return { name: member?.display_name || '—', avatar: member ? l?.look?.(member) || member.avatar : {}, title: TITLES[cat].s }; }));
           const me = l?.views.find(v => v.member.user_id === l.meId);
@@ -99,6 +109,10 @@ export function Room(props: RoomProps) {
         for (const label of w.labels) {
           if (label.key === 'glory' && l && !l.wall?.mural) continue;
           const node = addLabel(label.key, `${label.number} ${label.title}`, 'room3d-zone', label.action ? () => activate(label.action!) : undefined), point = w.project(label.point);
+          if (!node.querySelector('.zone-number')) {
+            const number = document.createElement('span'); number.className = 'zone-number'; number.textContent = String(label.number);
+            node.replaceChildren(number, document.createTextNode(' ' + label.title));
+          }
           node.style.left = point.x + 'px'; node.style.top = point.y + 'px';
         }
         for (const m of p.members) {
@@ -106,7 +120,7 @@ export function Room(props: RoomProps) {
           if (!actor) continue; actorsSeen.add('actor-' + m.user_id);
           const point = w.project(actor.root.position.clone().add(new Vector3(0, 2.3, 0)));
           const mode = modeById.current.get(m.user_id), title = l?.titles?.[m.user_id];
-          const status = mode === 'lounge' ? ' · no lounge' : mode === 'capture' ? ' · captando' : v?.agents ? ` · IA ×${v.agents}` : '';
+          const status = mode === 'lounge' ? ' · no lounge' : mode === 'capture' ? ' · Gravando' : mode === 'brainstorm' ? ' · Brainstorm' : v?.agents ? ` · IA ×${v.agents}` : '';
           const node = addLabel('actor-' + m.user_id, (m.display_name || 'Colega') + status, 'room3d-person' + (m.user_id === l?.meId ? ' mine' : ''), () => p.onPerson?.(m.user_id));
           node.style.left = point.x + 'px'; node.style.top = point.y + 'px'; node.style.setProperty('--status', v ? STATE_COLOR[v.shown] : '#aaa');
           node.title = [l?.taskTitle?.(m.user_id), title ? TITLES[title].n : null].filter(Boolean).join(' · ');
@@ -130,10 +144,10 @@ export function Room(props: RoomProps) {
     const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpanded(false); };
     window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close);
   }, [expanded]);
-  if (failed) return <><p className="note">O modo 3D não está disponível neste dispositivo. A sala continua acessível abaixo.</p><PixelRoom {...props} /></>;
+  if (failed) return <><p className="note">O modo 3D não está disponível neste dispositivo. A sala continua acessível abaixo.</p><div className="btns"><button onClick={props.onStudio}>Gravar no estúdio</button><button onClick={props.onBrainstorm}>Brainstorm</button><button onClick={props.onOwnDesk}>Voltar à minha mesa</button></div><PixelRoom {...props} /></>;
   return <div className={'office3d' + (expanded ? ' expanded' : '')}>
     <div className="room3d-header"><div><span className="eyebrow">SEU ESCRITÓRIO VIRTUAL</span><b>Sala 8-bit <span>3D</span></b></div><button type="button" className="ghost sm" onClick={() => setExpanded(!expanded)} aria-label={expanded ? 'Reduzir escritório' : 'Ampliar escritório'}>{expanded ? 'Reduzir ↙' : 'Ampliar ↗'}</button></div>
-    <div className="room3d-stage"><div className="room3d-world" ref={host} /><div ref={labels} className="room3d-labels" />{!ready && <div className="room3d-loading">Preparando seu escritório 3D…</div>}</div>
+    <div className={'room3d-stage' + (layout.reference ? ' reference-scene' : '')}>{layout.reference && <img className="room3d-reference" src="/scenery/office-reference-clean-v2.png" alt="" aria-hidden="true" onError={() => setFailed(true)} />}<div className="room3d-world" ref={host} /><div ref={labels} className="room3d-labels" />{!ready && <div className="room3d-loading">Preparando seu escritório 3D…</div>}</div>
     <div className="room3d-footer"><span><i />{pick ? 'Escolha uma mesa livre para o seu personagem' : hint}</span>{live && <span>{live.views.filter(v => v.online).length} pessoas online</span>}</div>
   </div>;
 }
