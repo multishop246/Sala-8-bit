@@ -111,6 +111,7 @@ export class OfficeWorld {
     }
     this.targetMarker = new T.Mesh(new T.RingGeometry(.25, .31, 32), new T.MeshBasicMaterial({ color: '#9e83ee', transparent: true, opacity: .85, side: T.DoubleSide }));
     this.targetMarker.rotation.x = -Math.PI / 2; this.targetMarker.position.y = .065; this.targetMarker.visible = false; this.scene.add(this.targetMarker);
+    if (layout.reference) this.targetMarker.renderOrder = -4;
     this.camera.position.set(29, 31, 34); this.camera.lookAt(0, .4, 0);
     if (layout.reference) this.prepareReference();
     const target = new T.WebGLRenderTarget(1, 1, { type: T.HalfFloatType, samples: 4 });
@@ -134,7 +135,7 @@ export class OfficeWorld {
       const h = b.h ?? 1;
       if (!h) return;
       const mesh = this.box(this.scene, b.w, h, b.d, b.x, h / 2, b.z, '#ffffff', 0);
-      mesh.material = new T.MeshStandardMaterial({ colorWrite: false, side: T.DoubleSide }); mesh.castShadow = false; mesh.renderOrder = -2;
+      mesh.material = new T.MeshStandardMaterial({ colorWrite: false, side: T.DoubleSide }); mesh.castShadow = false; mesh.renderOrder = -6;
     });
     const labels: [string, string, number, number, string | undefined, number][] = [
       ['tasks', 'Quadro de tarefas', 1057, 216, 'board', 1], ['coffee', 'Copa', 269, 290, 'copa', 2],
@@ -159,7 +160,7 @@ export class OfficeWorld {
     REFERENCE_SPOTS.meeting.forEach((p, i) => this.chair(p.x, p.z, i < 3 ? Math.PI : 0));
     for (let i = 0; i < 4; i++) { const p = brainstormSeat(i); this.chair(p.x, p.z, p.facing); }
     this.chair(REFERENCE_SPOTS.manager.x, REFERENCE_SPOTS.manager.z, 0, this.scene, '#65558d');
-    this.brandLED(); this.makePrinter();
+    this.brandLED(); this.makePrinter(); this.tabletopLayers();
     const meetingScreen = this.canvasTexture(400, 330, c => {
       c.fillStyle = '#272a3b'; c.fillRect(0, 0, 400, 330);
       c.fillStyle = '#6250a9'; c.fillRect(16, 16, 368, 298);
@@ -167,6 +168,37 @@ export class OfficeWorld {
     });
     const screen = new T.Mesh(this.referenceQuad([[680, 681], [745, 648], [745, 709], [680, 742]]), new T.MeshBasicMaterial({ map: meetingScreen, side: T.DoubleSide, depthTest: false, depthWrite: false }));
     screen.renderOrder = -5; this.scene.add(screen);
+  }
+  private tabletopLayers() {
+    // The fixed render contains the precise table silhouettes. Repaint those small
+    // regions after lower limbs, before torsos/heads, so shoes cannot appear on a desk.
+    const texture = new T.TextureLoader().load('/scenery/office-reference-clean-v4.png');
+    texture.colorSpace = T.SRGBColorSpace; this.resources.add(texture);
+    const polygons = [
+      [[551, 410], [631, 373], [790, 464], [709, 507]],
+      [[756, 519], [838, 478], [970, 569], [886, 615]],
+      [[698, 727], [758, 696], [929, 799], [872, 830]],
+      [[1173, 549], [1269, 501], [1409, 602], [1323, 648]],
+    ];
+    for (const corners of polygons) {
+      const geometry = this.referenceQuad(corners);
+      geometry.setAttribute('uv', new T.Float32BufferAttribute(corners.flatMap(([u, v]) => [u / REFERENCE_SIZE.width, 1 - v / REFERENCE_SIZE.height]), 2));
+      const overlay = new T.Mesh(geometry, new T.ShaderMaterial({
+        uniforms: { image: { value: texture } }, side: T.DoubleSide, depthTest: false, depthWrite: false, toneMapped: false,
+        vertexShader: `varying vec3 imageUV; void main() {
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          imageUV = vec3(uv * gl_Position.w, gl_Position.w);
+        }`,
+        fragmentShader: `uniform sampler2D image; varying vec3 imageUV; void main() {
+          vec4 color = texture2D(image, imageUV.xy / imageUV.z);
+          // Only wood occludes lower limbs. Keep the floor behind chairs transparent.
+          if (color.r <= color.g * 1.2 || color.g <= color.b * 1.4) discard;
+          gl_FragColor = color;
+          #include <colorspace_fragment>
+        }`,
+      }));
+      overlay.renderOrder = -3; this.scene.add(overlay);
+    }
   }
   private brandLED() {
     const img = new Image(); img.src = '/scenery/aromasil-original.png';
@@ -298,6 +330,7 @@ export class OfficeWorld {
     this.cylinder(g, .06, .45, 0, .25, 0, '#7a7b88'); this.box(g, .75, .055, .07, 0, .09, 0, '#555763'); this.box(g, .07, .055, .75, 0, .09, 0, '#555763');
     for (const side of [-1, 1]) { this.box(g, .065, .3, .06, side * .4, .66, 0, '#57586a'); this.box(g, .11, .07, .43, side * .4, .83, .06, color); }
     for (let i = 0; i < 5; i++) { const a = i * Math.PI * .4, arm = this.box(g, .055, .055, .4, Math.sin(a) * .2, .13, Math.cos(a) * .2, '#545764'); arm.rotation.y = a; const wheel = this.cylinder(g, .075, .07, Math.sin(a) * .4, .08, Math.cos(a) * .4, '#282a36'); wheel.rotation.z = Math.PI / 2; }
+    if (this.layout.reference) g.traverse(o => { if (o instanceof T.Mesh && o.position.y < .9) o.renderOrder = -4; });
     this.chairs.push({ mesh: g, home: { x, z }, facing, pull: 0 });
     return g;
   }
@@ -597,6 +630,7 @@ export class OfficeWorld {
       this.box(leg, .19, .25, .22, 0, -.12, 0, '#3b4054', .04);
       const knee = new T.Group(); knee.position.y = -.25; leg.add(knee); knees.push(knee);
       this.box(knee, .18, .48, .2, 0, -.24, 0, '#3b4054', .04); this.box(knee, .22, .14, .34, 0, -.48, .055, '#2d2f41', .05);
+      if (this.layout.reference) leg.traverse(o => { if (o instanceof T.Mesh) o.renderOrder = -4; });
       const arm = new T.Group(); arm.position.set(sign * .32, 1.07, 0); body.add(arm); arms.push(arm);
       this.box(arm, .16, .28, .2, 0, -.13, 0, clothes, .04); this.box(arm, .15, .26, .17, 0, -.36, 0, skin, .05);
     }
@@ -611,6 +645,7 @@ export class OfficeWorld {
     const noteTexture = this.canvasTexture(96, 96, c => { c.fillStyle = '#a783e7'; c.beginPath(); c.arc(48, 48, 44, 0, Math.PI * 2); c.fill(); c.fillStyle = '#fff'; c.font = 'bold 65px sans-serif'; c.textAlign = 'center'; c.fillText('♪', 48, 72); });
     const note = new T.Sprite(new T.SpriteMaterial({ map: noteTexture, depthTest: false })); note.scale.set(.48, .48, 1); root.add(note);
     const ring = new T.Mesh(new T.RingGeometry(.42, .47, 32), new T.MeshBasicMaterial({ color: '#a68cf0', side: T.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.position.y = .065; root.add(ring);
+    if (this.layout.reference) ring.renderOrder = -4;
     const cam = new T.Group(); this.box(cam, .4, .28, .25, 0, 0, 0, '#303b4b'); this.cylinder(cam, .09, .2, 0, 0, .2, '#576477').rotation.x = Math.PI / 2; cam.position.set(.3, .9, .3); body.add(cam);
     const phone = new T.Group(); phone.position.set(.3, 1.35, .5); body.add(phone);
     this.box(phone, .19, .36, .045, 0, 0, 0, '#26324b', .025); this.box(phone, .15, .29, .01, 0, 0, -.025, '#78c2d6');

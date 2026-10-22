@@ -37,9 +37,13 @@ export const brainstormSeat = (i: number) => {
 export const REFERENCE_TABLES = [referencePoint(670, 497), referencePoint(860, 602)];
 function referenceLayout(count: number) {
   const tables = REFERENCE_TABLES;
+  // Rear seats are registered to their visible floor contacts in the approved image.
+  // The photographed desk depth cannot be inferred from the front-row spacing.
+  const rear = [[678, 441], [739, 479], [834, 534], [925, 581]];
   const desks = Array.from({ length: count }, (_, i) => {
     const table = tables[Math.floor(i / 4)], front = i % 4 < 2;
-    return { x: table.x + (i % 2 ? 1.05 : -1.05), z: table.z + (front ? 1.5 : -1.5), n: i + 1, facing: front ? Math.PI : 0, table };
+    const p = front ? { x: table.x + (i % 2 ? 1.05 : -1.05), z: table.z + 1.5 } : referencePoint(...rear[Math.floor(i / 4) * 2 + i % 2] as [number, number]);
+    return { ...p, n: i + 1, facing: front ? Math.PI : 0, table };
   });
   const blocks: Obstacle[] = [
     ...tables.map(p => ({ ...p, w: 4.35, d: 1.65, h: 1.02 })),

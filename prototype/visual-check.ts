@@ -37,3 +37,9 @@ function render(time: number) {
 }
 requestAnimationFrame(render);
 window.addEventListener('pagehide', () => world.dispose(), { once: true });
+extraButton('Mesa traseira', () => set({ target: layout.desks[3], facing: 0, sitting: true, mode: 'desk' }));
+extraButton('Referência original', () => {
+  const img = document.querySelector<HTMLImageElement>('#stage > img')!;
+  img.src = '/scenery/office-reference-clean-v2.png'; document.querySelector<HTMLElement>('#world')!.style.visibility = 'hidden';
+  img.onclick = event => { const r = img.getBoundingClientRect(); document.title = JSON.stringify({pixelX:(event.clientX-r.left)*1545/r.width,pixelY:(event.clientY-r.top)*1018/r.height}); };
+});
